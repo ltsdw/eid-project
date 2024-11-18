@@ -21,6 +21,8 @@ add_library(
     "${CMAKE_CURRENT_SOURCE_DIR}/src/utils/zlib-stream-manager.cpp"
 )
 
+add_library(EID::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+
 target_include_directories(
     ${PROJECT_NAME}
     PUBLIC
@@ -57,7 +59,7 @@ install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-# Export targets for system-wide usage
+# Install targets system-wide
 
 install(
     EXPORT ${PROJECT_NAME}Targets
