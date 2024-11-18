@@ -14,6 +14,7 @@ target_compile_features(compile_flags INTERFACE cxx_std_20)
 
 add_library(
     ${PROJECT_NAME}
+    STATIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/image-decoder/image-decoder.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/image-formats/png-format.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/utils/utils.cpp"
