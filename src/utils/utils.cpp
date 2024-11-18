@@ -3,10 +3,8 @@
 namespace utils
 {
 
-uint64_t convertFromNetworkByteOrder(uint64_t value)
+bool useNetworkByteOrder()
 {
-    constexpr const static uint16_t test_byte = 0x1;
-
     /*!
      * I'm using bit_cast here just so clang-tidy doesn't complain
      * about how unsafe the C-style cast and reinterpret_cast are. But both works.
@@ -16,9 +14,26 @@ uint64_t convertFromNetworkByteOrder(uint64_t value)
      * the least significant bit will 00.
      * (the number is the same for both LE and BE, the number 1, but how it's arrenged in memory that is differnt)
     */
-    const static bool is_little_endian = *std::bit_cast<const uint8_t*, const uint16_t*>(&test_byte) == 0x1;
 
-    if (not is_little_endian) { return value; }
+    constexpr const static uint16_t test_byte = 0x1;
+    const static bool has_msb = *std::bit_cast<const uint8_t*, const uint16_t*>(&test_byte) != 0x1;
+    return has_msb;
+}
+
+uint64_t convertFromNetworkByteOrder(uint64_t value)
+{
+    /*!
+     * I'm using bit_cast here just so clang-tidy doesn't complain
+     * about how unsafe the C-style cast and reinterpret_cast are. But both works.
+     *
+     * We just care about the least significant byte, on LE this will be 0x0001
+     * where the least significant byte will 01, on BE it will arrenged in memory as 0x0100
+     * the least significant bit will 00.
+     * (the number is the same for both LE and BE, the number 1, but how it's arrenged in memory that is differnt)
+    */
+    const static bool use_network_byte_order = useNetworkByteOrder();
+
+    if (use_network_byte_order) { return value; }
 
     /*!
      * It will be easier to visualize the magic of byte swapping if checking the examples.
@@ -69,10 +84,9 @@ uint64_t convertFromNetworkByteOrder(uint64_t value)
 
 uint32_t convertFromNetworkByteOrder(uint32_t value)
 {
-    constexpr const static uint16_t test_byte = 0x1;
-    const static bool is_little_endian = *std::bit_cast<const uint8_t*, const uint16_t*>(&test_byte) == 0x1;
+    const static bool use_network_byte_order = useNetworkByteOrder();
 
-    if (not is_little_endian) { return value; }
+    if (use_network_byte_order) { return value; }
 
     return
     (
@@ -85,10 +99,9 @@ uint32_t convertFromNetworkByteOrder(uint32_t value)
 
 uint16_t convertFromNetworkByteOrder(uint16_t value)
 {
-    constexpr const static uint16_t test_byte = 0x1;
-    const static bool is_little_endian = *std::bit_cast<const uint8_t*, const uint16_t*>(&test_byte) == 0x1;
+    const static bool use_network_byte_order = useNetworkByteOrder();
 
-    if (not is_little_endian) { return value; }
+    if (use_network_byte_order) { return value; }
 
     return
     (
@@ -96,24 +109,6 @@ uint16_t convertFromNetworkByteOrder(uint16_t value)
         (value << 8) & (uint16_t)(0xFF) << 8
     );
 } // convertFromNetworkByteOrder
-
-Bytes getVectorBytes(const uint8_t* data, size_t length)
-{
-    Bytes bytes{Bytes(length)};
-
-    for (auto i = 0; i < length; ++i)
-    {
-        bytes[i] = Byte{data[i]};
-    }
-
-    return bytes;
-} // getVectorBytes
-
-void appendNBytes(Bytes& dest, CBytes& src, Bytes::difference_type n_bytes)
-{
-    dest.reserve(dest.size() + (src.size() - n_bytes));
-    dest.insert(dest.end(), src.begin(), src.begin() + n_bytes);
-} // appendNBytes
 
 uint32_t calculateCRC32(CBytes& data, uint32_t initial_value, uint32_t final_xor_value) noexcept
 {
@@ -138,6 +133,12 @@ uint32_t calculateCRC32(CBytes& data, uint32_t initial_value, uint32_t final_xor
 
     return remainder ^ final_xor_value;
 } // calculateCRC32
+
+void appendNBytes(Bytes& dest, CBytes& src, Bytes::difference_type n_bytes)
+{
+    dest.reserve(dest.size() + (src.size() - n_bytes));
+    dest.insert(dest.end(), src.begin(), src.begin() + n_bytes);
+} // appendNBytes
 
 bool matches(CBytes& lhs, const std::string& rhs) noexcept
 {

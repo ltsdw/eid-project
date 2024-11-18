@@ -11,17 +11,6 @@
 namespace utils
 {
     /*!
-     * These functions will be useful for converting from network byte order (big-endian) to little endian.
-     * Although we should technically use the hton* and ntoh* functions variations from #include <arpa/inet.h>,
-     * it's cool to see how they could be implemented.
-     *
-     * https://en.wikipedia.org/wiki/Endianness
-     *
-     * More on converting network-byte-order to little endian here:
-     * https://embetronicx.com/tutorials/p_language/c/little-endian-and-big-endian/
-    */
-
-    /*!
      * Some structs and type aliases
     */
     using Byte = std::byte;
@@ -36,24 +25,42 @@ namespace utils
     using CBytes = const std::vector<Byte>;
 
     /*!
+     * These functions will be useful for converting from network byte order (big-endian) to little endian.
+     * Although we should technically use the hton* and ntoh* functions variations from #include <arpa/inet.h>,
+     * it's cool to see how they could be implemented.
+     *
+     * https://en.wikipedia.org/wiki/Endianness
+     *
+     * More on converting network-byte-order to little endian here:
+     * https://embetronicx.com/tutorials/p_language/c/little-endian-and-big-endian/
+    */
+
+    /*!
+     * useNetworkByteOrder
+     *
+     * @return: True if the host machine uses MSB (most significant byte).
+    */
+    bool useNetworkByteOrder();
+
+    /*!
      * convertFromNetworkByteOrder
      *
-     * @param value: to be converted.
-     * @return the converted value if in a little endian system, or the unaltered value otherwise.
+     * @param value: Value.
+     * @return: Converted value if the host machine uses LSB.
     */
     uint64_t convertFromNetworkByteOrder(uint64_t value);
     /*!
      * convertFromNetworkByteOrder
      *
-     * @param value: to be converted.
-     * @return the converted value if in a little endian system, or the unaltered value otherwise.
+     * @param value: Value.
+     * @return: Converted value if the host machine uses LSB.
     */
     uint32_t convertFromNetworkByteOrder(uint32_t value);
     /*!
      * convertFromNetworkByteOrder
      *
-     * @param value: to be converted.
-     * @return the converted value if in a little endian system, or the unaltered value otherwise.
+     * @param value: Value.
+     * @return: Converted value if the host machine uses LSB.
     */
     uint16_t convertFromNetworkByteOrder(uint16_t value);
 
@@ -64,26 +71,13 @@ namespace utils
      * about the dangers of reinterpret_cast.
      *
      * @param cast: value to be casted to.
-     * @return the casted value.
+     * @return: the casted value.
     */
     template <typename To, typename From>
     To unsafe_cast(const From& cast)
     {
         return reinterpret_cast<To>(cast);
     }
-
-    /*!
-     * appendNBytes
-     *
-     * Append length bytes from the source vector bytes to the destination vector bytes,
-     * if offset is provided, it starts appending bytes from dest.begin() + offset of the destination vector.
-     *
-     * @param dest: Destination vector bytes.
-     * @param src: Source vector bytes.
-     * @param n_bytes: Number bytes from source that should be appened to destination vector.
-     * @return
-    */
-    void appendNBytes(Bytes& dest, CBytes& src, Bytes::difference_type n_bytes);
 
     /*!
      * calculateCRC32
@@ -227,6 +221,19 @@ namespace utils
         uint32_t initial_value = 0xFFFFFFFF,
         uint32_t final_xor_value = 0xFFFFFFFF
     ) noexcept;
+
+    /*!
+     * appendNBytes
+     *
+     * Append length bytes from the source vector bytes to the destination vector bytes,
+     * if offset is provided, it starts appending bytes from dest.begin() + offset of the destination vector.
+     *
+     * @param dest: Destination vector bytes.
+     * @param src: Source vector bytes.
+     * @param n_bytes: Number bytes from source that should be appened to destination vector.
+     * @return
+    */
+    void appendNBytes(Bytes& dest, CBytes& src, Bytes::difference_type n_bytes);
 
     /*!
      * matches
