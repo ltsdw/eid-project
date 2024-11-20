@@ -45,6 +45,14 @@ target_link_libraries(
     ZLIB::ZLIB
 )
 
+option(BUILD_TESTS "Enable building tests" OFF)
+
+if (BUILD_TESTS)
+    find_package(TIFF REQUIRED)
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests/build")
+    add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/tests" "${CMAKE_CURRENT_SOURCE_DIR}/tests/build")
+endif()
+
 include(GNUInstallDirs)
 
 install(

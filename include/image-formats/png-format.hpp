@@ -81,35 +81,94 @@ namespace image_formats::png_format
      * - Finally the IEND (Image End), a 0 byte field indicating the end of the image file.
     */
 
+    /*!
+     * Scanlines
+     *
+     * For PNG, scanlines are a straightforward way of representing pixels on screen,
+     * each row has size of (image width * image number of channels * the size in bytes of each channel),
+     * in total there are "image height" of rows (i.e. a 6x6, truecolor, 8 bits depth color image would have
+     * 6 rows of 18 bytes each, 3 channels (red, green, blue) * 6 * 6.
+     *
+     * There's also the extra byte at the beginning of each scanline which tells what filter was used for the scanline.
+     * so in the example above, each scanline would actually have 19 bytes each, but we don't output this byte to the final
+     * defiltered data.
+     *
+    */
+    class Scanlines
+    {
+        private:
+            static constexpr uint8_t NONE_FILTER_TYPE {0x0};
+            static constexpr uint8_t SUB_FILTER_TYPE {0x1};
+            static constexpr uint8_t UP_FILTER_TYPE {0x2};
+            static constexpr uint8_t AVERAGE_FILTER_TYPE {0x3};
+            static constexpr uint8_t PAETH_FILTER_TYPE {0x4};
+
+            using ScanlineBegin = utils::Bytes::iterator;
+            using ScanlineEnd = utils::Bytes::iterator;
+            using CScanlineBegin = utils::Bytes::const_iterator;
+            using CScanlineEnd = utils::Bytes::const_iterator;
+
+        public:
+            Scanlines() = default;
+            Scanlines(uint32_t width, uint32_t height, uint8_t bit_depth, uint8_t color_type);
+            Scanlines(const Scanlines&) = delete;
+            Scanlines(Scanlines&&) = delete;
+            Scanlines& operator=(const Scanlines&) = delete;
+            Scanlines& operator=(Scanlines&&) = delete;
+
+        public:
+            /*!
+             * defilterData
+             *
+             * Applies the necessary filter for each scanline.
+             * @param filtered_data: Filtered data to be defiltered.
+             * @return
+            */
+            void defilterData(utils::CBytes& filtered_data, utils::Bytes& defiltered_data);
+
+        private:
+            void defilterSubFilter(
+                CScanlineBegin filtered_scanline_begin,
+                CScanlineEnd filtered_scanline_end,
+                ScanlineBegin defiltered_scanline_begin
+            );
+            void defilterUpFilter(
+                CScanlineBegin filtered_scanline_begin,
+                CScanlineEnd filtered_scanline_end,
+                CScanlineBegin previous_defiltered_scanline_begin,
+                CScanlineEnd previous_defiltered_scanline_end,
+                ScanlineBegin defiltered_scanline_begin
+            );
+            void defilterAverageFilter
+            (
+                CScanlineBegin filtered_scanline_begin,
+                CScanlineEnd filtered_scanline_end,
+                CScanlineBegin previous_defiltered_scanline_begin,
+                CScanlineEnd previous_defiltered_scanline_end,
+                ScanlineBegin defiltered_scanline_begin
+            );
+            void defilterPaethFilter
+            (
+                CScanlineBegin filtered_scanline_begin,
+                CScanlineEnd filtered_scanline_end,
+                CScanlineBegin previous_defiltered_scanline_begin,
+                CScanlineEnd previous_defiltered_scanline_end,
+                ScanlineBegin defiltered_scanline_begin
+            );
+            [[nodiscard]] uint8_t paethPredictor(
+                int left_of_current,
+                int above_current,
+                int upper_left_of_current
+            ) const noexcept;
+        private:
+            uint8_t m_bytes_per_pixel{0};
+            utils::Bytes::difference_type m_scanline_size{0};
+            size_t m_scanlines_size{0};
+    }; // Scalines
+
+
     class PNGFormat
     {
-        public:
-           static constexpr uint8_t CHUNK_TYPE_FIELD_BYTES_SIZE { 4 };
-           static constexpr uint8_t CHUNK_LENGTH_FIELD_BYTES_SIZE { 4 };
-           static constexpr uint8_t CRC_FIELD_BYTES_SIZE { 4 };
-           static constexpr uint8_t SIGNATURE_FIELD_BYTES_SIZE { 8 };
-           static constexpr uint8_t IHDR_CHUNK_BYTES_SIZE { 13 };
-           static constexpr uint32_t IHDR_CHUNK_TYPE { 0x49484452 };
-
-            struct Chunk
-            {
-                utils::Bytes m_chunk_type{utils::Bytes(CHUNK_TYPE_FIELD_BYTES_SIZE)};
-                utils::Bytes m_chunk_data;
-            };
-
-            #pragma pack(push, 1)
-            struct IHDRChunk
-            {
-                uint32_t width{0};
-                uint32_t height{0};
-                uint8_t bit_depth{0};
-                uint8_t color_type{0};
-                uint8_t compression_method{0};
-                uint8_t filter_method{0};
-                uint8_t interlaced_method{0};
-            };
-            #pragma pack(pop)
-
         public:
             PNGFormat(const std::filesystem::path& image_filepath);
             ~PNGFormat();
@@ -117,6 +176,106 @@ namespace image_formats::png_format
             PNGFormat(const PNGFormat&) = delete;
             PNGFormat& operator=(const PNGFormat&) = delete;
             PNGFormat& operator=(const PNGFormat&&) = delete;
+
+        private:
+           static constexpr uint8_t CHUNK_TYPE_FIELD_BYTES_SIZE { 4 };
+           static constexpr uint8_t CHUNK_LENGTH_FIELD_BYTES_SIZE { 4 };
+           static constexpr uint8_t CRC_FIELD_BYTES_SIZE { 4 };
+           static constexpr uint8_t SIGNATURE_FIELD_BYTES_SIZE { 8 };
+           static constexpr uint8_t IHDR_CHUNK_BYTES_SIZE { 13 };
+           static constexpr uint32_t IHDR_CHUNK_TYPE { 0x49484452 };
+
+           struct Chunk
+           {
+               utils::Bytes m_chunk_type{utils::Bytes(CHUNK_TYPE_FIELD_BYTES_SIZE)};
+               utils::Bytes m_chunk_data;
+           };
+
+           #pragma pack(push, 1)
+           struct IHDRChunk
+           {
+               uint32_t width{0};
+               uint32_t height{0};
+               uint8_t bit_depth{0};
+               uint8_t color_type{0};
+               uint8_t compression_method{0};
+               uint8_t filter_method{0};
+               uint8_t interlaced_method{0};
+           };
+           #pragma pack(pop)
+
+        public:
+            /*!
+             * Some utilities for exposing some Scanline class member functions.
+            */
+
+            /*!
+             * getScanlinesSize
+             *
+             * @return: The size of the scanlines.
+            */
+            [[nodiscard]] size_t getScanlinesSize() const noexcept;
+
+            /*!
+             * getImageWidth
+             *
+             * @return: Image width.
+            */
+            [[nodiscard]] uint32_t getImageWidth() const noexcept;
+
+            /*!
+             * getImageHeight
+             *
+             * @return: Image height.
+            */
+            [[nodiscard]] uint32_t getImageHeight() const noexcept;
+
+            /*!
+             * getImageBitDepth
+             *
+             * @return: Image bit depth.
+            */
+            [[nodiscard]] uint8_t getImageBitDepth() const noexcept;
+
+            /*!
+             * getImageColorType
+             *
+             * @return: Image color type.
+            */
+            [[nodiscard]] uint8_t getImageColorType() const noexcept;
+
+            /*!
+             * getRawDataRef
+             *
+             * @return: A reference for the internal defiltered vector bytes,
+             * make a copy the vector if the class must go out scope or use getRawDataCopy.
+            */
+            [[nodiscard]] utils::Bytes& getRawDataRef() noexcept;
+
+            /*!
+             * getRawDataCopy
+             *
+             * @return: A copy for the internal defiltered vector bytes.
+            */
+            [[nodiscard]] utils::Bytes getRawDataCopy() noexcept;
+
+            /*!
+             * getRawDataPtr
+             *
+             * @return: A pointer of the internal defiltered vector bytes,
+            */
+            [[nodiscard]] uint8_t* getRawDataPtr();
+
+            /*!
+             * swapBytesOrder
+             *
+             * If image's bit depth > 8 bits, raw data will be reoder, meaning if it's LSB it'll become MSB,
+             * and if it's MSB it'll become MSB.
+             * If image's bit depth is less than 8 bits, nothing is done.
+             *
+             * @return
+            */
+            void swapBytesOrder();
 
         private:
             /*!
@@ -162,93 +321,7 @@ namespace image_formats::png_format
             std::ifstream m_image_stream;
             utils::Bytes m_signature{utils::Bytes(SIGNATURE_FIELD_BYTES_SIZE)};
             IHDRChunk m_ihdr{};
-    }; // PNGFormat
-
-    /*!
-     * Scanlines
-     *
-     * For PNG, scanlines are a straightforward way of representing pixels on screen,
-     * each row has size of (image width * image number of channels * the size in bytes of each channel),
-     * in total there are "image height" of rows (i.e. a 6x6, truecolor, 8 bits depth color image would have
-     * 6 rows of 18 bytes each, 3 channels (red, green, blue) * 6 * 6.
-     *
-     * There's also the extra byte at the beginning of each scanline which tells what filter was used for the scanline.
-     * so in the example above, each scanline would actually have 19 bytes each, but we don't output this byte to the final
-     * defiltered data.
-     *
-    */
-    class Scanlines
-    {
-        private:
-            static constexpr uint8_t NONE_FILTER_TYPE {0x0};
-            static constexpr uint8_t SUB_FILTER_TYPE {0x1};
-            static constexpr uint8_t UP_FILTER_TYPE {0x2};
-            static constexpr uint8_t AVERAGE_FILTER_TYPE {0x3};
-            static constexpr uint8_t PAETH_FILTER_TYPE {0x4};
-
-            using ScanlineBegin = utils::Bytes::iterator;
-            using ScanlineEnd = utils::Bytes::iterator;
-            using CScanlineBegin = utils::Bytes::const_iterator;
-            using CScanlineEnd = utils::Bytes::const_iterator;
-        public:
-            Scanlines(utils::CBytes& filtered_data, uint32_t width, uint32_t height, uint8_t bit_depth, uint8_t color_type);
-
-        private:
-            /*!
-             * defilterData
-             *
-             * Applies the necessary filter for each scanline.
-             * @param filtered_data: Filtered data to be defiltered.
-             * @return
-            */
-            void defilterData(utils::CBytes& filtered_data);
-
-            void defilterSubFilter(
-                CScanlineBegin filtered_scanline_begin,
-                CScanlineEnd filtered_scanline_end,
-                ScanlineBegin defiltered_scanline_begin
-            );
-            void defilterUpFilter(
-                CScanlineBegin filtered_scanline_begin,
-                CScanlineEnd filtered_scanline_end,
-                CScanlineBegin previous_defiltered_scanline_begin,
-                CScanlineEnd previous_defiltered_scanline_end,
-                ScanlineBegin defiltered_scanline_begin
-            );
-            void defilterAverageFilter
-            (
-                CScanlineBegin filtered_scanline_begin,
-                CScanlineEnd filtered_scanline_end,
-                CScanlineBegin previous_defiltered_scanline_begin,
-                CScanlineEnd previous_defiltered_scanline_end,
-                ScanlineBegin defiltered_scanline_begin
-            );
-            void defilterPaethFilter
-            (
-                CScanlineBegin filtered_scanline_begin,
-                CScanlineEnd filtered_scanline_end,
-                CScanlineBegin previous_defiltered_scanline_begin,
-                CScanlineEnd previous_defiltered_scanline_end,
-                ScanlineBegin defiltered_scanline_begin
-            );
-            [[nodiscard]] uint8_t paethPredictor(
-                int left_of_current,
-                int above_current,
-                int upper_left_of_current
-            ) const noexcept;
-        public:
-            /*!
-             * getDefilteredData
-             *
-             * @return: A reference for the internal defiltered vector bytes,
-             * make a copy the vector if the class must go out scope.
-            */
-            [[nodiscard]] utils::Bytes& getDefilteredData() noexcept;
-
-        private:
-            uint8_t m_bytes_per_pixel{0};
-            utils::Bytes::difference_type m_scanline_size{0};
-            utils::Bytes::difference_type m_scanlines_size{0};
+            Scanlines m_scanlines;
             utils::Bytes m_defiltered_data;
-    }; // Scalines
+    }; // PNGFormat
 }; // namespace image_formats::png_format

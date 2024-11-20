@@ -16,21 +16,15 @@ PNGFormat::PNGFormat(const std::filesystem::path& image_filepath)
 
     if (not m_image_stream.is_open())
     {
-        std::cout << "File isn't open.\n";
+        std::cerr << "File isn't open, exiting.\n";
         std::exit(EXIT_FAILURE);
     }
-
-    if (image_filepath.extension() == ".png")
-    {
-        std::cout << "is a png file.\n";
-    }
-
-    std::cout << "file is open.\n";
 
     utils::ZlibStreamManager z_lib_stream_manager{};
     utils::Bytes decompressed_data;
     readNBytes(m_signature, SIGNATURE_FIELD_BYTES_SIZE);
 
+    // Parses all chunks
     while (true)
     {
         Chunk chunk;
@@ -46,7 +40,16 @@ PNGFormat::PNGFormat(const std::filesystem::path& image_filepath)
         }
     }
 
-    Scanlines scanlines(decompressed_data, m_ihdr.width, m_ihdr.height, m_ihdr.bit_depth, m_ihdr.color_type);
+    // Start scanlines structure
+    Scanlines m_scanlines(
+        m_ihdr.width,
+        m_ihdr.height,
+        m_ihdr.bit_depth,
+        m_ihdr.color_type
+    );
+
+    // Defilter the scanlines
+    m_scanlines.defilterData(decompressed_data, m_defiltered_data);
 } // PNGFormat::PNGFormat
 
 PNGFormat::~PNGFormat()
@@ -130,9 +133,58 @@ void PNGFormat::fillIHDRData(utils::CBytes& data)
     m_ihdr.interlaced_method = utils::readAndAdvanceIter<uint8_t>(begin, end);
 } // PNGFormat::fillIHDRData
 
+size_t PNGFormat::getScanlinesSize() const noexcept
+{
+    return m_defiltered_data.size();
+} // PNGFormat::getScanlinesSize
+
+utils::Bytes& PNGFormat::getRawDataRef() noexcept
+{
+    return m_defiltered_data;
+} // PNGFormat::getRawDataRef
+
+utils::Bytes PNGFormat::getRawDataCopy() noexcept
+{
+    return m_defiltered_data;
+} // PNGFormat::getRawDataCopy
+
+uint8_t* PNGFormat::getRawDataPtr()
+{
+    return std::bit_cast<uint8_t*>(m_defiltered_data.data());
+} // PNGFormat::getRawDataPtr
+
+uint32_t PNGFormat::getImageWidth() const noexcept
+{
+    return m_ihdr.width;
+} // PNGFormat::getImageWidth
+
+uint32_t PNGFormat::getImageHeight() const noexcept
+{
+    return m_ihdr.height;
+} // PNGFormat::getImageHeight
+
+uint8_t PNGFormat::getImageBitDepth() const noexcept
+{
+    return m_ihdr.bit_depth;
+} // PNGFormat::getImageBitDepth
+
+uint8_t PNGFormat::getImageColorType() const noexcept
+{
+    return m_ihdr.color_type;
+} // PNGFormat::getImageColorType
+
+void PNGFormat::swapBytesOrder()
+{
+    if (m_ihdr.bit_depth <= 8) { return; }
+
+    for (auto it = m_defiltered_data.begin(); it != m_defiltered_data.end(); it += 2)
+    {
+        std::swap(*it, *(it+1));
+    }
+}
+
 Scanlines::Scanlines
 (
-    utils::CBytes& data,
     uint32_t width,
     uint32_t height,
     uint8_t bit_depth,
@@ -151,17 +203,17 @@ Scanlines::Scanlines
     m_bytes_per_pixel = number_of_channels * (bit_depth / 8);
     m_scanline_size = static_cast<utils::Bytes::difference_type>(width) * m_bytes_per_pixel;
     m_scanlines_size = m_scanline_size * height;
-
-    m_defiltered_data.resize(m_scanlines_size);
-    defilterData(data);
 } // Scalines::Scalines
 
-void Scanlines::defilterData(utils::CBytes& filtered_data)
+void Scanlines::defilterData(utils::CBytes& filtered_data, utils::Bytes& defiltered_data)
 {
+    // Initialize and resize all the space needed to accommodate all the scanlines
+    defiltered_data.resize(m_scanlines_size);
+
     const auto it = filtered_data.cbegin();
     const auto it_end = filtered_data.cend();
-    const auto it_defiltered = m_defiltered_data.cbegin();
-    const auto it_defiltered_end = m_defiltered_data.cend();
+    const auto it_defiltered = defiltered_data.cbegin();
+    const auto it_defiltered_end = defiltered_data.cend();
 
     /*!
      * As every scanline starts with an extra byte for the filter type, we must
@@ -172,7 +224,7 @@ void Scanlines::defilterData(utils::CBytes& filtered_data)
         auto extra_filter_bytes_accumulated = (row / (m_scanline_size + 1));
         auto filtered_scanline_begin = filtered_data.begin() + row + 1;
         auto filtered_scanline_end = filtered_data.begin() + row + m_scanline_size + 1;
-        auto defiltered_scanline_begin = m_defiltered_data.begin() + row - extra_filter_bytes_accumulated;
+        auto defiltered_scanline_begin = defiltered_data.begin() + row - extra_filter_bytes_accumulated;
 
         if (not utils::isWithinBoundaries(it, it_end, filtered_scanline_begin, filtered_scanline_end)
             or not utils::isWithinBoundaries
@@ -184,9 +236,10 @@ void Scanlines::defilterData(utils::CBytes& filtered_data)
         ) { throw std::out_of_range(std::string("Out of range iterators: ") + __func__); }
 
         auto filter_type = static_cast<uint8_t>(filtered_data[row]);
-        auto previous_defiltered_scanline_begin = m_defiltered_data.cend();
-        auto previous_defiltered_scanline_end = m_defiltered_data.cend();
+        auto previous_defiltered_scanline_begin = defiltered_data.cend();
+        auto previous_defiltered_scanline_end = defiltered_data.cend();
 
+        // It means we have a previous scanline
         if (row > 0)
         {
             previous_defiltered_scanline_begin = defiltered_scanline_begin - m_scanline_size;
@@ -651,12 +704,4 @@ uint8_t Scanlines::paethPredictor
     else
         return upper_left_of_current;
 } // Scalines::paethPredictor
-
-utils::Bytes& Scanlines::getDefilteredData() noexcept
-{
-    // Scanline starts with an extra byte denoting which filter was used, so we account for that.
-
-    return m_defiltered_data;
-} // Scanlines::getDefilteredData
-
 } // namespace image_formats::png_format
