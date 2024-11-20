@@ -37,35 +37,11 @@ void writeTiffImage
     TIFFSetField(tif, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_RGB);
 
     const uint8_t bytes_per_pixel = bit_depth * number_of_channels / 8;
-    //std::vector<uint16_t> image_data(width * height * number_of_channels);
 
     for (int row = 0; row < height; ++row)
     {
         TIFFWriteScanline(tif, std::bit_cast<void*>(&raw_data[row * width * bytes_per_pixel]), row, 0);
     }
-    //if (bit_depth <= 8)
-    //{
-
-    //} else
-    //{
-    //    /*!
-    //     * TODO: This is technically wrong as it doesn't handle 10, 12, bits right, it expects to be exactly 16 bits
-    //     * and handle rgb, support rgba too.
-    //    */
-    //    //for (size_t i = 0, j = 0; i < raw_data.size(); i += bytes_per_pixel, j += bytes_per_pixel / 2)
-    //    //{
-    //    //    auto r = static_cast<uint16_t>( static_cast<uint16_t>(raw_data[i]) | static_cast<uint16_t>(raw_data[i + 1]) << 8);
-    //    //    auto g = static_cast<uint16_t>( static_cast<uint16_t>(raw_data[i + 2]) | static_cast<uint16_t>(raw_data[i + 3]) << 8);
-    //    //    auto b = static_cast<uint16_t>( static_cast<uint16_t>(raw_data[i + 4]) | static_cast<uint16_t>(raw_data[i + 5]) << 8);
-
-    //    //    image_data[j] = utils::convertFromNetworkByteOrder(r);
-    //    //    image_data[j + 1] = utils::convertFromNetworkByteOrder(g);
-    //    //    image_data[j + 2] = utils::convertFromNetworkByteOrder(b);
-    //    //}
-    //    for (int row = 0; row < height; ++row) {
-    //        TIFFWriteScanline(tif, std::bit_cast<void*>(raw_data.data() + row * width * bytes_per_pixel), row, 0);
-    //    }
-    //}
 
     TIFFClose(tif);
     std::cout << "TIFF image written to " << filename << std::endl;
