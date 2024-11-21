@@ -25,6 +25,6 @@ install(
 # Export the target for locally usage without installing system-wide
 export(
     TARGETS ${PROJECT_NAME}
-    FILE "${CMAKE_BINARY_DIR}/cmake/${PROJECT_NAME}Targets.cmake"
+    FILE "${CMAKE_CURRENT_BINARY_DIR}/cmake/${PROJECT_NAME}Targets.cmake"
     NAMESPACE EID::
 )

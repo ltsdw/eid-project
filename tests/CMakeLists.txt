@@ -37,8 +37,6 @@ add_executable(
     "${CMAKE_CURRENT_SOURCE_DIR}/src/image-decoder-wrapper-tests/image-decoder-wrapper-tests.c"
 )
 
-file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/image-decoder-wrapper-tests")
-
 set_target_properties(
     image_decoder_wrapper_tests
     PROPERTIES
