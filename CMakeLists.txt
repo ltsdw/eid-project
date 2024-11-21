@@ -19,6 +19,9 @@ add_library(
     "${CMAKE_CURRENT_SOURCE_DIR}/src/utils/zlib-stream-manager.cpp"
 )
 
+# Alias for locally usage
+add_library(EID::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+
 target_include_directories(
     ${PROJECT_NAME}
     PUBLIC

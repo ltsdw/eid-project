@@ -6,6 +6,9 @@ add_library(
     "${CMAKE_CURRENT_SOURCE_DIR}/src/image-decoder-wrapper/image-decoder-wrapper.cpp"
 )
 
+# Alias for locally usage
+add_library(EID::${PROJECT_NAME}Wrapper ALIAS ${PROJECT_NAME}Wrapper)
+
 target_include_directories(
     ${PROJECT_NAME}Wrapper
     PUBLIC
