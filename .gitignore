@@ -45,8 +45,10 @@ CMakeFiles/
 /CMakeCache.txt
 cmake_install.cmake
 CTestTestfile.cmake
-Makefile
-*.cmake
+*config.cmake
+*version.cmake
+*Version.cmake
+*Config.cmake
 
 # Autotools build artifacts
 /aclocal.m4
