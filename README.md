@@ -124,8 +124,7 @@ int main(int argc, const char** argv)
     ImageColorType image_color_type;
     uint8_t image_bit_depth = 0;
 
-    ImageDecoderWrapper* image_decoder_wrapper =
-    createImageDecoderInstance
+    ImageDecoderWrapper* image_decoder_wrapper = createImageDecoderInstance
     (
         "input-images/rgb_8_bits.png",
         &width,
