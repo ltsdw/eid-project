@@ -127,7 +127,7 @@ int main(int argc, const char** argv)
     ImageDecoderWrapper* image_decoder_wrapper =
     createImageDecoderInstance
     (
-        "../rgba_16_bits.png",
+        "input-images/rgb_8_bits.png",
         &width,
         &height,
         &image_color_type,
