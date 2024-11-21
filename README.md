@@ -159,7 +159,7 @@ cmake --build build
 
 ## Optionally installing system-wide
 ```
-sudo cmake --install build
+cmake --install build
 ```
 
 ## Using system-wide installed library
