@@ -45,10 +45,10 @@ target_link_libraries(
 )
 
 # Install targets system-wide
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/install-instructions.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/eid-library-install.cmake")
 
 # Image decoder wrapper setup and installation
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/image-decoder-wrapper.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/eid-wrapper-install.cmake")
 
 # Setup configure cmake file
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/config-setup.cmake")
