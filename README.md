@@ -12,7 +12,7 @@ The library is better suited for being installed using cmake's [FetchContent](ht
 Simple CMakeLists.txt as example:
 ```cmake
 cmake_minimum_required(VERSION 3.15)
-project(hello_world LANGUAGES C CXX)
+project(hello_world LANGUAGES CXX)
 include(FetchContent)
 
 FetchContent_Declare(
