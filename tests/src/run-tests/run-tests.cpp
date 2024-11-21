@@ -2,16 +2,16 @@
 #include <cassert>
 #include <iostream>
 
-#include "utils.hpp"
+#include "run-tests/utils.hpp"
 
 int main(int argc, const char** argv)
 {
     std::vector<std::filesystem::path> files
     {
-        "../input-images/rgb_8_bits.png",
-        "../input-images/rgb_16_bits.png",
-        "../input-images/rgba_8_bits.png",
-        "../input-images/rgba_16_bits.png"
+        "../../input-images/rgb_8_bits.png",
+        "../../input-images/rgb_16_bits.png",
+        "../../input-images/rgba_8_bits.png",
+        "../../input-images/rgba_16_bits.png"
     };
 
     for (auto filepath : files)
@@ -33,7 +33,7 @@ int main(int argc, const char** argv)
         std::cout << "bytes per pixel: " << (uint32_t)bytes_per_pixel << "\n\n";
 
         filepath.replace_extension(".tiff");
-        filepath = "../output-images" / filepath.filename();
+        filepath = "../../output-images" / filepath.filename();
 
         tests::writeTiffImage
         (

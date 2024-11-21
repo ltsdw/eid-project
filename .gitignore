@@ -29,6 +29,11 @@ core.*
 *.dep
 
 # Build directories
+*/build/
+*/bin/
+*/lib/
+*/log/
+*/out/
 /build/
 /bin/
 /lib/

@@ -2,7 +2,7 @@
 #include <iostream>
 #include <bit>
 
-#include "utils.hpp"
+#include "run-tests/utils.hpp"
 
 namespace tests
 {

@@ -39,7 +39,7 @@ namespace image_decoder
             /*!
              * getRawDataRef
              *
-             * @return: A reference for the internal defiltered vector bytes,
+             * @return: A reference for the internal raw data bytes,
              * make a copy the vector if the class must go out scope or use getRawDataCopy.
             */
             [[nodiscard]] utils::Bytes& getRawDataRef();
@@ -47,14 +47,14 @@ namespace image_decoder
             /*!
              * getRawDataCopy
              *
-             * @return: A copy for the internal defiltered vector bytes.
+             * @return: A copy for the internal raw data bytes.
             */
             [[nodiscard]] utils::Bytes getRawDataCopy();
 
             /*!
              * getRawDataPtr
              *
-             * @return: A pointer to a copy of the internal defiltered vector bytes,
+             * @return: A pointer to a copy of the internal raw data bytes,
              * caller is responsible for freeing the memory.
             */
             [[nodiscard]] uint8_t* getRawDataPtr();

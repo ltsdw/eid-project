@@ -4,14 +4,12 @@ project(
     eid_project
     VERSION 0.1.0
     DESCRIPTION "Educational Image Decoder"
-    LANGUAGES CXX
+    LANGUAGES C CXX
 )
 
 find_package(ZLIB REQUIRED)
 
-add_library(compile_flags INTERFACE)
-target_compile_features(compile_flags INTERFACE cxx_std_20)
-
+# The EID CPP Library
 add_library(
     ${PROJECT_NAME}
     STATIC
@@ -20,8 +18,6 @@ add_library(
     "${CMAKE_CURRENT_SOURCE_DIR}/src/utils/utils.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/utils/zlib-stream-manager.cpp"
 )
-
-add_library(EID::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 target_include_directories(
     ${PROJECT_NAME}
@@ -45,6 +41,16 @@ target_link_libraries(
     ZLIB::ZLIB
 )
 
+# Install targets system-wide
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/install-instructions.cmake")
+
+# Image decoder wrapper setup and installation
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/image-decoder-wrapper.cmake")
+
+# Setup configure cmake file
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/config-setup.cmake")
+
+# Build tests
 option(BUILD_TESTS "Enable building tests" OFF)
 
 if (BUILD_TESTS)
@@ -52,55 +58,3 @@ if (BUILD_TESTS)
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests/build")
     add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/tests" "${CMAKE_CURRENT_SOURCE_DIR}/tests/build")
 endif()
-
-include(GNUInstallDirs)
-
-install(
-    TARGETS ${PROJECT_NAME}
-    EXPORT ${PROJECT_NAME}Targets
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
-
-install(
-    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
-
-# Install targets system-wide
-
-install(
-    EXPORT ${PROJECT_NAME}Targets
-    FILE ${PROJECT_NAME}Targets.cmake
-    NAMESPACE EID::
-    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
-)
-
-include(CMakePackageConfigHelpers)
-
-write_basic_package_version_file(
-    "${CMAKE_CURRENT_BINARY_DIR}/cmake/${PROJECT_NAME}ConfigVersion.cmake"
-    COMPATIBILITY SameMajorVersion
-)
-
-configure_package_config_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/${PROJECT_NAME}Config.cmake.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/cmake/${PROJECT_NAME}Config.cmake"
-    INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
-)
-
-install(
-    FILES
-    "${CMAKE_CURRENT_BINARY_DIR}/cmake/${PROJECT_NAME}Config.cmake"
-    "${CMAKE_CURRENT_BINARY_DIR}/cmake/${PROJECT_NAME}ConfigVersion.cmake"
-    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
-)
-
-# Export targets locally
-
-export(
-    EXPORT
-    ${PROJECT_NAME}Targets
-    FILE "${CMAKE_CURRENT_BINARY_DIR}/cmake/${PROJECT_NAME}Targets.cmake"
-    NAMESPACE EID::
-)
