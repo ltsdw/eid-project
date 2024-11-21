@@ -123,6 +123,19 @@ uint32_t calculateCRC32(CBytes& data, uint32_t initial_value, uint32_t final_xor
         {
             if (remainder & 0x1)
             {
+                /*!
+                 * This is a naive implementation, it's easier to understand because
+                 * it similar to the mathematical formula for calculating the crc,
+                 * yet there's some ways to improve performance, one of which, is to use
+                 * a lookup table with pre-calculated effects which each bit has on the crc
+                 * this lookup table is the same, so you can either copy-paste it making it
+                 * statically initialized, or you can dynamically initialize it, either way is
+                 * better than this naive implementation, performance-wise speaking obviously.
+                 * For our purposes here, this is fine.
+                 *
+                 * See: https://barrgroup.com/blog/crc-series-part-3-crc-implementation-code-cc
+                 * (specifically in the "Code Cleanup" section)
+                */
                 remainder = (remainder >> 1) ^ POLYNOMIAL;
             } else
             {
