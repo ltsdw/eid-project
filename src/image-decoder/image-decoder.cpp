@@ -9,7 +9,7 @@ ImageDecoder::ImageDecoder(const std::filesystem::path& image_filepath)
 {
     if (!std::filesystem::exists(image_filepath))
     {
-        std::cerr << "Error: File does not exist: " << image_filepath << '\n';
+        std::cerr << "File does not exist: " << image_filepath << '\n';
 
         std::exit(EXIT_FAILURE);
     }
