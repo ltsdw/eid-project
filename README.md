@@ -3,6 +3,23 @@
 EID (Educational Image Decoder) focuses on teaching the ways of image decoding.
 The project focus more on teaching than saving lines of code or being the most optmized possible, with easier syntaxes and algorithms, with lots of documentation explaining most complicated concepts.
 
+# Where to start?
+
+First, most information about a specific topic is within the headers, although the headers explains a lot of topics, code has also important information.
+
+The entry point is the ImageDecoder class constructor, from there based on the extension of the file a specific member function for that image format will be called to start the decoding process.
+So taking for example a PNG file, the process goes like:
+
+1. A filepath is fed to the ImageDecoder constructor.
+2. ImageDecoder decides which function to call to load the file, for PNG files that will be ImageDecoder::loadPNGImage.
+3. ImageDecoder::loadPNGImage will create a PNGFormat.
+4. The PNGFormat object will be responsible for decompressing image data and passing this decompressed data to Scanlines object.
+5. Finally the Scanlines object will process each scanline and apply the correct defilter to each of them, leaving a raw data structure representing the image.
+
+The proccess above are just for the PNG format, different format has different steps before we can get the raw data, some format are trickier than others.
+
+"Not all image formats are created equal" - Someone, somewhere
+
 # Installing as dependency
 
 The library is better suited for being installed using cmake's [FetchContent](https://cmake.org/cmake/help/latest/module/FetchContent.html), you can use it standalone from your project, or install library system-wide and use cmake's [find_package](https://cmake.org/cmake/help/latest/command/find_package.html).
