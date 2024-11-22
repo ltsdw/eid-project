@@ -36,6 +36,19 @@ int main(int argc, const char** argv)
         return EXIT_FAILURE;
     }
 
+    /*!
+     * If you're using a png file, and need its raw 16 bit to be in LSB
+     * for other programs, you'll need to swap its bytes from MSB to LSB.
+    */
+    int ret = swapBytesOrder(image_decoder_wrapper, &error);
+
+    if (ret != 0)
+    {
+        printf("swapBytesOrder failed: %s\n", error);
+
+        return EXIT_FAILURE;
+    }
+
     uint8_t* raw_data = getRawDataBuffer(image_decoder_wrapper, &error);
 
     if (! raw_data)
