@@ -111,10 +111,10 @@ namespace image_formats::png_format
         public:
             Scanlines() = default;
             Scanlines(uint32_t width, uint32_t height, uint8_t bit_depth, uint8_t color_type);
-            Scanlines(const Scanlines&) = delete;
-            Scanlines(Scanlines&&) = delete;
-            Scanlines& operator=(const Scanlines&) = delete;
-            Scanlines& operator=(Scanlines&&) = delete;
+            Scanlines(const Scanlines&) = default;
+            Scanlines(Scanlines&&) = default;
+            Scanlines& operator=(const Scanlines&) = default;
+            Scanlines& operator=(Scanlines&&) = default;
 
         public:
             /*!
@@ -125,6 +125,20 @@ namespace image_formats::png_format
              * @return
             */
             void defilterData(utils::CBytes& filtered_data, utils::Bytes& defiltered_data);
+
+            /*!
+             * getScanlineSize
+             *
+             * @return: The size of a single scanline.
+            */
+            [[nodiscard]] size_t getScanlineSize() const noexcept;
+
+            /*!
+             * getScanlinesSize
+             *
+             * @return: The size of all the scanlines.
+            */
+            [[nodiscard]] size_t getScanlinesSize() const noexcept;
 
         private:
             void defilterSubFilter(
@@ -210,11 +224,18 @@ namespace image_formats::png_format
             */
 
             /*!
-             * getScanlinesSize
+             * getImageScanlinesSize
              *
-             * @return: The size of the scanlines.
+             * @return: The size of all the scanlines.
             */
-            [[nodiscard]] size_t getScanlinesSize() const noexcept;
+            [[nodiscard]] size_t getImageScanlinesSize() const noexcept;
+
+            /*!
+             * getImageScanlineSize
+             *
+             * @return: The size of a single scanline.
+            */
+            [[nodiscard]] size_t getImageScanlineSize() const noexcept;
 
             /*!
              * getImageWidth
@@ -245,12 +266,12 @@ namespace image_formats::png_format
             [[nodiscard]] uint8_t getImageColorType() const noexcept;
 
             /*!
-             * getRawDataRef
+             * getRawDataConstRef
              *
-             * @return: A reference for the internal defiltered vector bytes,
-             * make a copy the vector if the class must go out scope or use getRawDataCopy.
+             * @return: A const reference for the internal defiltered vector bytes,
+             * make a copy the vector if the class must go out scope or use getRawDataCopy to get a copy.
             */
-            [[nodiscard]] utils::Bytes& getRawDataRef() noexcept;
+            [[nodiscard]] [[deprecated("Use getRawDataCopy instead.")]] utils::CBytes& getRawDataConstRef() noexcept;
 
             /*!
              * getRawDataCopy
@@ -260,11 +281,11 @@ namespace image_formats::png_format
             [[nodiscard]] utils::Bytes getRawDataCopy() noexcept;
 
             /*!
-             * getRawDataPtr
+             * getRawDataBuffer
              *
-             * @return: A pointer of the internal defiltered vector bytes,
+             * @return: A const pointer for the internal defiltered vector bytes,
             */
-            [[nodiscard]] uint8_t* getRawDataPtr();
+            [[nodiscard]] const uint8_t* getRawDataBuffer();
 
             /*!
              * swapBytesOrder
@@ -319,8 +340,8 @@ namespace image_formats::png_format
 
         private:
             std::ifstream m_image_stream;
-            utils::Bytes m_signature{utils::Bytes(SIGNATURE_FIELD_BYTES_SIZE)};
-            IHDRChunk m_ihdr{};
+            utils::Bytes m_signature { utils::Bytes(SIGNATURE_FIELD_BYTES_SIZE) };
+            IHDRChunk m_ihdr {};
             Scanlines m_scanlines;
             utils::Bytes m_defiltered_data;
     }; // PNGFormat

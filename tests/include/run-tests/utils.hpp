@@ -4,11 +4,10 @@
 #include <cstdint>
 #include <tiffio.h>
 
-#include "image-decoder/image-decoder.hpp"
 #include "utils/utils.hpp"
 
-namespace tests {
-
+namespace tests
+{
     void writeTiffImage
     (
         const std::filesystem::path& filename,
@@ -18,6 +17,4 @@ namespace tests {
         uint8_t bit_depth,
         uint8_t number_of_channels
     );
-
-    void setBytesPerPixel(image_decoder::ImageColorType color_type, uint8_t* bytes_per_pixel);
-} // tests
+} // namespace tests

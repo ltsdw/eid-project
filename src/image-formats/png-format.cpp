@@ -41,7 +41,7 @@ PNGFormat::PNGFormat(const std::filesystem::path& image_filepath)
     }
 
     // Start scanlines structure
-    Scanlines m_scanlines(
+    m_scanlines = Scanlines(
         m_ihdr.width,
         m_ihdr.height,
         m_ihdr.bit_depth,
@@ -133,12 +133,17 @@ void PNGFormat::fillIHDRData(utils::CBytes& data)
     m_ihdr.interlaced_method = utils::readAndAdvanceIter<uint8_t>(begin, end);
 } // PNGFormat::fillIHDRData
 
-size_t PNGFormat::getScanlinesSize() const noexcept
+size_t PNGFormat::getImageScanlinesSize() const noexcept
 {
-    return m_defiltered_data.size();
+    return m_scanlines.getScanlinesSize();
 } // PNGFormat::getScanlinesSize
 
-utils::Bytes& PNGFormat::getRawDataRef() noexcept
+size_t PNGFormat::getImageScanlineSize() const noexcept
+{
+    return m_scanlines.getScanlineSize();
+} // PNGFormat::getScanlinesSize
+
+utils::CBytes& PNGFormat::getRawDataConstRef() noexcept
 {
     return m_defiltered_data;
 } // PNGFormat::getRawDataRef
@@ -148,7 +153,7 @@ utils::Bytes PNGFormat::getRawDataCopy() noexcept
     return m_defiltered_data;
 } // PNGFormat::getRawDataCopy
 
-uint8_t* PNGFormat::getRawDataPtr()
+const uint8_t* PNGFormat::getRawDataBuffer()
 {
     return std::bit_cast<uint8_t*>(m_defiltered_data.data());
 } // PNGFormat::getRawDataPtr
@@ -704,4 +709,15 @@ uint8_t Scanlines::paethPredictor
     else
         return upper_left_of_current;
 } // Scalines::paethPredictor
+
+size_t Scanlines::getScanlineSize() const noexcept
+{
+    return m_scanline_size;
+} // Scalines::getScanlineSize
+
+size_t Scanlines::getScanlinesSize() const noexcept
+{
+    return m_scanlines_size;
+} // Scalines::getScanlineSize
+
 } // namespace image_formats::png_format

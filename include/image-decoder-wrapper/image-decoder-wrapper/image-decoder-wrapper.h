@@ -8,6 +8,13 @@ extern "C"
 {
 #endif // __cplusplus
 
+/*!
+ * Some simple macros just for auto documentation on the return codes.
+*/
+#define SUCCESS 0
+#define INVALID_ARGUMENTS -1
+#define EXCEPTION -2
+
 typedef enum
 {
     INVALID_COLOR_TYPE  = -0x1,
@@ -16,7 +23,6 @@ typedef enum
     RGB                 = 0x3,
     RGBA                = 0x4,
 } ImageColorType; // enum ImageColorType
-
 
 /*!
  * ImageDecoderWrapper
@@ -35,8 +41,17 @@ typedef struct ImageDecoderWrapper ImageDecoderWrapper;
  * createImageDecoderInstance
  *
  * @param image_filepath: Image filepath.
+ * @param image_width: Pointer to store image's width.
+ * @param image_height: Pointer to store image's height.
+ * @param image_color_type: Pointer to store image's color type.
+ * @param image_bit_depth: Pointer to store image's bit depth.
+ * @param image_number_of_channels: Pointer to store image's number of channels.
+ * @param error: If there's any error its message will be placed into it.
  * @return: A pointer to an instance wrapper around the ImageDecoder class,
- * the memory should be freed by destroyImageDecoderInstance.
+ * the memory should be deallocated by destroyImageDecoderInstance.
+ * NULL pointer will be returned in case of error.
+ * The caller must check the 'error' parameter message
+ * to see what happened in case of null pointer return.
 */
 ImageDecoderWrapper* createImageDecoderInstance
 (
@@ -44,23 +59,43 @@ ImageDecoderWrapper* createImageDecoderInstance
     uint32_t* image_width,
     uint32_t* image_height,
     ImageColorType* image_color_type,
-    uint8_t* image_bit_depth
+    uint8_t* image_bit_depth,
+    uint8_t* image_number_of_channels,
+    const char** error
 );
 
 /*!
  * destroyImageInstance
  *
- * @param image_decoder_instance: A pointer to the allocated ImageDecoderWrapper memory to be deallocated.
+ * @param image_decoder_wrapper: Pointer to an instance of the ImageDecoder object to be deallocated.
+ * @return
 */
 void destroyImageDecoderInstance(ImageDecoderWrapper* image_decoder_wrapper);
 
 /*!
- * getRawDataPtr
+ * getRawDataBuffer
  *
- * @return: A pointer to a copy of the internal raw data,
- * caller is responsible for freeing the memory.
+ * This function will allocate memory and copy the content of the internal raw data buffer to the new allocated buffer.
+ * The caller must deallocate memory using freeRawDataBuffer.
+ *
+ * @param image_decoder_wrapper: Pointer to an instance of the ImageDecoder object.
+ * @param error: If there's any error its message will be placed into it.
+ * @return: A pointer to the allocated memory and copied content of the internal raw data buffer.
+ * It's the caller responsability to deallocate this memory with freeRawDataBuffer.
+ * NULL pointer will be returned in case of error.
+ * The caller must check the 'error' parameter message
+ * to see what happened in case of null pointer return.
 */
-uint8_t* getRawDataPtr(ImageDecoderWrapper* image_decoder_wrapper);
+uint8_t* getRawDataBuffer(ImageDecoderWrapper* image_decoder_wrapper, const char** error);
+
+/*!
+ * freeRawDataBuffer
+ *
+ * Deallocates the memory allocated for buffer allocated by the getRawDataBuffer.
+ *
+ * @return
+*/
+void freeRawDataBuffer(uint8_t* buffer);
 
 /*!
  * swapBytesOrder
@@ -68,9 +103,12 @@ uint8_t* getRawDataPtr(ImageDecoderWrapper* image_decoder_wrapper);
  * If bit depth > 8 bits, raw data will be reoder, meaning if it's LSB it'll become MSB,
  * and if it's MSB it'll become MSB.
  *
- * @return
+ * @param image_decoder_wrapper: Pointer to an instance of the ImageDecoder object.
+ * @param error: If there's any error its message will be placed into it.
+ * @return: On success this function will return 0, it will return -1 if the arguments are invalid or -2 if an exception happens.
+ * The caller must check the 'error' parameter to see what happened in case of non-zero return.
 */
-void swapBytesOrder(ImageDecoderWrapper* image_decoder_wrapper);
+int swapBytesOrder(ImageDecoderWrapper* image_decoder_wrapper, const char** error);
 
 #ifdef __cplusplus
 }

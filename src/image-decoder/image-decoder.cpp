@@ -64,13 +64,13 @@ const ImageDecoder::png_image_unique_ptr* ImageDecoder::getPNGVariantData() cons
     return image;
 } // ImageDecoder::getPNGVariantData
 
-utils::Bytes& ImageDecoder::getRawDataRef()
+utils::CBytes& ImageDecoder::getRawDataConstRef()
 {
     if (m_image_format_type == ImageFormat::PNG_FORMAT_TYPE)
     {
         auto image = getPNGVariantData();
 
-        return (*image)->getRawDataRef();
+        return (*image)->getRawDataConstRef();
     }
 
     throw std::runtime_error
@@ -87,7 +87,7 @@ utils::Bytes ImageDecoder::getRawDataCopy()
     {
         auto image = getPNGVariantData();
 
-        return (*image)->getRawDataRef();
+        return (*image)->getRawDataCopy();
     }
 
     throw std::runtime_error
@@ -98,15 +98,15 @@ utils::Bytes ImageDecoder::getRawDataCopy()
     );
 } // ImageDecoder::getRawDataCopy
 
-uint8_t* ImageDecoder::getRawDataPtr()
+uint8_t* ImageDecoder::getRawDataBuffer()
 {
     if (m_image_format_type == ImageFormat::PNG_FORMAT_TYPE)
     {
         auto image = getPNGVariantData();
 
-        uint8_t* ptr = new uint8_t[(*image)->getScanlinesSize()];
+        uint8_t* ptr = new uint8_t[(*image)->getImageScanlinesSize()];
 
-        std::memcpy(ptr, (*image)->getRawDataPtr(), (*image)->getScanlinesSize());
+        std::memcpy(ptr, (*image)->getRawDataBuffer(), (*image)->getImageScanlinesSize());
 
         return ptr;
     }
@@ -200,7 +200,59 @@ ImageColorType ImageDecoder::getImageColorType() const
         + " not implemented.\n"
     );
 
-} // ImageDecoder::getImageWidth
+} // ImageDecoder::getImageColorType
+
+uint8_t ImageDecoder::getImageNumberOfChannels() const
+{
+    switch (getImageColorType())
+    {
+        case image_decoder::ImageColorType::GRAYSCALE:
+            return 1;
+        case image_decoder::ImageColorType::GRAYSCALE_ALPHA:
+            return 2;
+        case image_decoder::ImageColorType::RGB:
+            return 3;
+        case image_decoder::ImageColorType::RGBA:
+            return 4;
+        default:
+            throw std::runtime_error("Color type not supported.\n");
+    };
+}
+
+size_t ImageDecoder::getImageScanlineSize() const
+{
+    if (m_image_format_type == ImageFormat::PNG_FORMAT_TYPE)
+    {
+        auto image = getPNGVariantData();
+
+        return (*image)->getImageScanlineSize();
+    }
+
+    throw std::runtime_error
+    (
+        "Format not implement: "
+        + std::to_string(static_cast<uint8_t>(m_image_format_type))
+        + " not implemented.\n"
+    );
+} // ImageDecoder::getImageScanlineSize
+
+size_t ImageDecoder::getImageScanlinesSize() const
+{
+    if (m_image_format_type == ImageFormat::PNG_FORMAT_TYPE)
+    {
+        auto image = getPNGVariantData();
+
+        return (*image)->getImageScanlinesSize();
+    }
+
+    throw std::runtime_error
+    (
+        "Format not implement: "
+        + std::to_string(static_cast<uint8_t>(m_image_format_type))
+        + " not implemented.\n"
+    );
+} // ImageDecoder::getImageScanlinesSize
+
 
 void ImageDecoder::swapBytesOrder()
 {

@@ -45,27 +45,5 @@ void writeTiffImage
 
     TIFFClose(tif);
     std::cout << "TIFF image written to " << filename << std::endl;
-}
-
-void setBytesPerPixel(image_decoder::ImageColorType color_type, uint8_t* bytes_per_pixel)
-{
-    switch (color_type)
-    {
-        case image_decoder::ImageColorType::GRAYSCALE:
-            *bytes_per_pixel = 1;
-            break;
-        case image_decoder::ImageColorType::GRAYSCALE_ALPHA:
-            *bytes_per_pixel = 2;
-            break;
-        case image_decoder::ImageColorType::RGB:
-            *bytes_per_pixel = 3;
-            break;
-        case image_decoder::ImageColorType::RGBA:
-            *bytes_per_pixel = 4;
-            break;
-        default:
-            assert(false and "Color type not supported.\n");
-    };
-}
-
+} // writeTiffImage
 } // namespace tests
