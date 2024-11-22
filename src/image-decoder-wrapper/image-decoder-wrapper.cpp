@@ -44,7 +44,7 @@ ImageDecoderWrapper* createImageDecoderInstance
     return image_decoder_wrapper;
 }
 
-void destroyDecoderImageInstance(ImageDecoderWrapper* image_decoder_wrapper)
+void destroyImageDecoderInstance(ImageDecoderWrapper* image_decoder_wrapper)
 {
     if (image_decoder_wrapper)
     {

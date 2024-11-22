@@ -36,7 +36,7 @@ typedef struct ImageDecoderWrapper ImageDecoderWrapper;
  *
  * @param image_filepath: Image filepath.
  * @return: A pointer to an instance wrapper around the ImageDecoder class,
- * the memory should be freed by destroyDecoderImageInstance.
+ * the memory should be freed by destroyImageDecoderInstance.
 */
 ImageDecoderWrapper* createImageDecoderInstance
 (
@@ -48,11 +48,11 @@ ImageDecoderWrapper* createImageDecoderInstance
 );
 
 /*!
- * destroyDecoderImageInstance
+ * destroyImageInstance
  *
  * @param image_decoder_instance: A pointer to the allocated ImageDecoderWrapper memory to be deallocated.
 */
-void destroyDecoderImageInstance(ImageDecoderWrapper* image_decoder_wrapper);
+void destroyImageDecoderInstance(ImageDecoderWrapper* image_decoder_wrapper);
 
 /*!
  * getRawDataPtr
