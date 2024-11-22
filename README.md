@@ -183,7 +183,7 @@ cmake --install build
 
 ```cmake
 cmake_minimum_required(VERSION 3.15)
-project(hello_world LANGUAGES C CXX)
+project(hello_world LANGUAGES CXX)
 
 find_package(eid_project REQUIRED)
 
