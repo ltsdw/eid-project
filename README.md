@@ -22,7 +22,7 @@ The proccess above are just for the PNG format, different format has different s
 
 # Installing as dependency
 
-The library is better suited for being installed using cmake's [FetchContent](https://cmake.org/cmake/help/latest/module/FetchContent.html), you can use it standalone from your project, or install library system-wide and use cmake's [find_package](https://cmake.org/cmake/help/latest/command/find_package.html).
+The library is better suited for being installed using cmake's [FetchContent](https://cmake.org/cmake/help/latest/module/FetchContent.html), you can use it standalone from your project, or install the library system-wide and use cmake's [find_package](https://cmake.org/cmake/help/latest/command/find_package.html).
 
 ## Using it as a dependency from your CMakeLists.txt project
 
