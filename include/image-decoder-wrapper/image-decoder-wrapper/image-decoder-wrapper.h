@@ -1,7 +1,8 @@
 #ifndef IMAGE_DECODER_WRAPPER_H
 #define IMAGE_DECODER_WRAPPER_H
 
-#include <inttypes.h>
+#include <stdint.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -46,6 +47,8 @@ typedef struct ImageDecoderWrapper ImageDecoderWrapper;
  * @param image_color_type: Pointer to store image's color type.
  * @param image_bit_depth: Pointer to store image's bit depth.
  * @param image_number_of_channels: Pointer to store image's number of channels.
+ * @param image_scanline_size: Pointer to store image's scanline size.
+ * @param image_scanlines_size: Pointer to store image's scanlines size.
  * @param error: If there's any error its message will be placed into it.
  * @return: A pointer to an instance wrapper around the ImageDecoder class,
  * the memory should be deallocated by destroyImageDecoderInstance.
@@ -61,6 +64,8 @@ ImageDecoderWrapper* createImageDecoderInstance
     ImageColorType* image_color_type,
     uint8_t* image_bit_depth,
     uint8_t* image_number_of_channels,
+    size_t* image_scanline_size,
+    size_t* image_scanlines_size,
     const char** error
 );
 

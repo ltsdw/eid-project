@@ -33,6 +33,8 @@ ImageDecoderWrapper* createImageDecoderInstance
     ImageColorType* image_color_type,
     uint8_t* image_bit_depth,
     uint8_t* image_number_of_channels,
+    size_t* image_scanline_size,
+    size_t* image_scanlines_size,
     const char** error
 )
 {
@@ -42,12 +44,13 @@ ImageDecoderWrapper* createImageDecoderInstance
     {
         image_decoder_wrapper = new ImageDecoderWrapper;
         image_decoder_wrapper->image_decoder = new image_decoder::ImageDecoder(image_filepath);
-
         *image_width = image_decoder_wrapper->image_decoder->getImageWidth();
         *image_height = image_decoder_wrapper->image_decoder->getImageHeight();
         *image_color_type = getImageColorType(image_decoder_wrapper->image_decoder->getImageColorType());
         *image_bit_depth = image_decoder_wrapper->image_decoder->getImageBitDepth();
         *image_number_of_channels = image_decoder_wrapper->image_decoder->getImageNumberOfChannels();
+        *image_scanline_size = image_decoder_wrapper->image_decoder->getImageScanlineSize();
+        *image_scanlines_size = image_decoder_wrapper->image_decoder->getImageScanlinesSize();
     } catch (const std::exception& e)
     {
         *error = e.what();
