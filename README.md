@@ -7,7 +7,7 @@ The project focus more on teaching than saving lines of code or being the most o
 
 First, most information about a specific topic is within the headers, although the headers explains a lot of topics, code has also important information.
 
-The entry point is the ImageDecoder class constructor, from there based on the extension of the file a specific member function for that image format will be called to start the decoding process.
+The entry point is the ImageDecoder class constructor, from there, based on the extension of the file, a specific member function for that image format will be called to start the decoding process.
 So taking for example a PNG file, the process goes like:
 
 1. A filepath is fed to the ImageDecoder constructor.
