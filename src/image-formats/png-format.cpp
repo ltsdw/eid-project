@@ -40,12 +40,28 @@ PNGFormat::PNGFormat(const std::filesystem::path& image_filepath)
         }
     }
 
+    m_number_of_channels =
+        (m_ihdr.color_type == 0x0) ? 1 :
+        (m_ihdr.color_type == 0x2) ? 3 :
+        //TODO: Add support indexed color
+        (m_ihdr.color_type == 0x4) ? 2 :
+        (m_ihdr.color_type == 0x6) ? 4 :
+        throw std::runtime_error
+        (
+            std::string("Color type not supported.\n")
+            + __func__ + "\n"
+            + std::to_string((uint32_t)m_ihdr.color_type) + "\n"
+        );
+
+    uint32_t width = getImageWidth();
+    uint32_t height = getImageHeight();
     // Start scanlines structure
     m_scanlines = Scanlines(
-        m_ihdr.width,
-        m_ihdr.height,
+        width,
+        height,
         m_ihdr.bit_depth,
-        m_ihdr.color_type
+        m_ihdr.color_type,
+        m_number_of_channels
     );
 
     // Defilter the scanlines
@@ -98,8 +114,8 @@ bool PNGFormat::readNextChunk(Chunk& chunk)
      * it would be possible to calculate this only once if we appended both vectors togheter
      * but that would be a waste of space.
      *
-     * The final_xor_value is 0 at first because we only final XOR the crc against 0xFFFFFFFF
-     * when all the bytes' crc is already calculated.
+     * The final_xor_value is 0 at first because we only XOR the crc against 0xFFFFFFFF
+     * when all the bytes' crc are already calculated.
     */
     data_crc = utils::calculateCRC32(chunk.m_chunk_type, 0xFFFFFFFF, 0);
     data_crc = utils::calculateCRC32(chunk.m_chunk_data, data_crc);
@@ -108,7 +124,7 @@ bool PNGFormat::readNextChunk(Chunk& chunk)
 
     if (data_crc != crc)
     {
-        throw std::runtime_error("Crc doesn't match, data may be corrupted data.\n");
+        throw std::runtime_error("Crc doesn't match, data may be corrupted.\n");
     }
 
     return true;
@@ -124,8 +140,8 @@ void PNGFormat::fillIHDRData(utils::CBytes& data)
     auto begin = data.begin();
     auto end = data.end();
 
-    m_ihdr.width = utils::convertFromNetworkByteOrder(utils::readAndAdvanceIter<uint32_t>(begin, end));
-    m_ihdr.height = utils::convertFromNetworkByteOrder(utils::readAndAdvanceIter<uint32_t>(begin, end));
+    m_ihdr.width = utils::readAndAdvanceIter<uint32_t>(begin, end);
+    m_ihdr.height = utils::readAndAdvanceIter<uint32_t>(begin, end);
     m_ihdr.bit_depth = utils::readAndAdvanceIter<uint8_t>(begin, end);
     m_ihdr.color_type = utils::readAndAdvanceIter<uint8_t>(begin, end);
     m_ihdr.compression_method = utils::readAndAdvanceIter<uint8_t>(begin, end);
@@ -160,12 +176,12 @@ const uint8_t* PNGFormat::getRawDataBuffer()
 
 uint32_t PNGFormat::getImageWidth() const noexcept
 {
-    return m_ihdr.width;
+    return utils::convertFromNetworkByteOrder(m_ihdr.width);
 } // PNGFormat::getImageWidth
 
 uint32_t PNGFormat::getImageHeight() const noexcept
 {
-    return m_ihdr.height;
+    return utils::convertFromNetworkByteOrder(m_ihdr.height);
 } // PNGFormat::getImageHeight
 
 uint8_t PNGFormat::getImageBitDepth() const noexcept
@@ -178,9 +194,15 @@ uint8_t PNGFormat::getImageColorType() const noexcept
     return m_ihdr.color_type;
 } // PNGFormat::getImageColorType
 
+uint8_t PNGFormat::getImageNumberOfChannels() const
+{
+    return m_number_of_channels;
+
+} // PNGFormat::getImageNumberOfChannels
+
 void PNGFormat::swapBytesOrder()
 {
-    if (m_ihdr.bit_depth <= 8) { return; }
+    if (m_ihdr.bit_depth < 16) { return; }
 
     for (auto it = m_defiltered_data.begin(); it != m_defiltered_data.end(); it += 2)
     {
@@ -193,20 +215,28 @@ Scanlines::Scanlines
     uint32_t width,
     uint32_t height,
     uint8_t bit_depth,
-    uint8_t color_type
+    uint8_t color_type,
+    uint8_t number_of_channels
 )
 {
-    // TODO: Add support for bits per pixel 1, 2, 4 bits.
-    if (bit_depth < 0x8 or bit_depth > 0x10) { throw std::runtime_error("Bit depth not supported.\n"); }
-
-    uint8_t number_of_channels =
-        (color_type == 0x0) ? 1 :
-        (color_type == 0x2) ? 3 :
-        //TODO: Add support indexed color
-        (color_type == 0x4) ? 2 :
-        (color_type == 0x6) ? 4 : throw std::runtime_error("Color type not supported.\n");
-    m_bytes_per_pixel = number_of_channels * (bit_depth / 8);
-    m_scanline_size = static_cast<utils::Bytes::difference_type>(width) * m_bytes_per_pixel;
+    m_number_of_channels = number_of_channels;
+    /*!
+     * The stride will tell the distance between one byte and the next byte needed to do operations like defiltering.
+     * In other words, the byte channel of one pixel, must match the byte of
+     * the next pixel it's being processed against, red with red, green with green, and so on.
+     *
+     * As the filters are applied on a per bytes basis,
+     * the strider is calculated the same way, to point to the byte which relates to the one being processed,
+     * no matter the bit depth. When there's no relationship of channels
+     * for single channels like grayscale, the indices of indexed colors, or less than 8 bit depth images,
+     * there's no need to keep relationship of the with concepts like "pixels and channels" anymore,
+     * we just defilter normally accounting that they're 1 byte.
+     *
+     * The + 7 is a way of rounding up to an entire byte, so for bit depths like 1 and 2, it counts as an entire byte,
+     * instead of reporting 0 bytes.
+    */
+    m_stride = ((bit_depth * m_number_of_channels + 7) / 8);
+    m_scanline_size = static_cast<utils::Bytes::difference_type>(width) * bit_depth * m_number_of_channels / 8;
     m_scanlines_size = m_scanline_size * height;
 } // Scalines::Scalines
 
@@ -253,10 +283,10 @@ void Scanlines::defilterData(utils::CBytes& filtered_data, utils::Bytes& defilte
 
         /*!
          * Filters, differently from those applied from editing image software, serves the purpose
-         * increasing the efficiency of zlib's deflate algorithm compression, as doing so, they reduce
-         * the redundancy within and between scanlines (you will see why
-         * when you look at filters that interact with previous pixels and scanlines) when processing the raw bytes.
-         * By reducing redundancy filter allows for better compression which results in smaller file sizes, and the best of all
+         * increasing the efficiency of compression algorithms, doing so, they reduce
+         * the redundancy within and between scanlines.
+         *
+         * By reducing redundancy, filter allows for better compression which results in smaller file sizes, and the best of all
          * at no loss of information, what goes in, will go out, no loss whatsover.
          * Each scanline has its filter, a combination of all filters is made to better compress the entire image,
          * the result wouldn't be as good if just one filter was chosen for the entire image.
@@ -269,21 +299,26 @@ void Scanlines::defilterData(utils::CBytes& filtered_data, utils::Bytes& defilte
          * there’s a method to the selection process.
          *
          * Before explaining each filter and how to defilter them, there's some rules we must establish,
-         * the filters' formula are fixed, meaning there are no different treatment when there's missing value,
-         * for example, when a formula asks us to subtract the current pixel from the previous pixel,
-         * what do we do in the case the current scanline has no previous pixel to start with?
-         * We treat the previous pixel as 0, same applies for the above and upper left pixels, if there isn't any, they're 0.
+         * the filters' formula are static, meaning there are no different treatment when there's
+         * "missing" needed value for calculation,
+         * for example, when a formula asks us to subtract the current byte being processed from the byte before it,
+         * what do we do in the case the current scanline has no previous byte yet to start with?
+         * We treat the previous byte as being 0, same applies for the above and upper left byte,
+         * if there isn't any, they're 0.
          *
          * Another rule is that there's no negative value when filtering, so each operation which would cause the value
-         * to go below zero, gets applied to modulus of (bit depth * number of channels per pixel), so it wraps around,
-         * this information isn't useful for decoders, as the filter is already applied.
+         * to go below zero, gets wrapped around by getting the modulus of 256 (the max number which a byte can hold) of this number,
+         * this is only important when encoding, not so much when decoding.
          *
-         * TODO: Introduce explanation on a per bits basis for < 8 bits depth color.
-         *
-         * While I'm giving the formula in pixels, the processing happens on a per bytes basis,
+         * The processing happens on a per bytes basis,
          * current_channel_red_byte with previous_channel_red_byte, green with green, blue with blue, and so on,
          * if there's more than one byte (in case of 16 bits depth color) we continue the processing on a per byte basis,
          * works the same for the previous scanline too, we must align the channels before processing.
+         *
+         * And for a bit depth less than 8 bits, grayscale and indexed color, we treat it all the same, meaning,
+         * for a pack of pixels inside a byte, we still process this as a per byte basis, byte by byte,
+         * pack of pixels by pack of pixels no different treatment, same for the indices in indexed color and the grayscale,
+         * for grayscale with alpha we would still need to align the grayscale channel and the alpha channel.
          *
          * -----------------------------------------------------------------------------------------------------------------
          *
@@ -294,63 +329,66 @@ void Scanlines::defilterData(utils::CBytes& filtered_data, utils::Bytes& defilte
          *
          * Sub filter formula:
          *
-         * CurrentFilteredPixel(x) = CurrentRawPixel(x) - PreviousFilteredPixel(x)
+         * CurrentFilteredByte(x) = CurrentRawByte(x) - PreviousFilteredByte(x)
          *
          * To defilter it, we simply do the inverse operation, instead of subtracting we sum.
          *
-         * CurrentDefilteredPixel(x) = CurrentFilteredPixel(x) + PreviousDefilteredPixel(x)
+         * CurrentDefilteredByte(x) = CurrentFilteredByte(x) + PreviousDefilteredByte(x)
          *
          * ---------
          * |---|---|
-         * |PDP|CFP|
+         * |PDB|CFB|
          * ---------
          *
-         * If there's no previous defiltered pixel, it's 0, which leave the current filtered pixel as is.
-         * In the case of this filter, the next processing will have a previous pixel to process so we must process
-         * each pixel that follows.
+         * If there's no byte before the current byte being processed, the byte before is 0,
+         * which leave the current filtered byte as is: value + 0 = value.
+         * This applies just for the first byte being processed, as the next byte will have a byte before,
+         * we must continue processing the scanline to the end.
          *
          * -----------------------------------------------------------------------------------------------------------------
          *
          * Up filter formula:
          *
-         * CurrentFilteredPixel(x) = CurrentRawPixel(x) - AboveFilteredPixel(x)
+         * CurrentFilteredByte(x) = CurrentRawByte(x) - AboveFilteredByte(x)
          *
          * To the defilter it, do the inverse operation, we sum.
          *
-         * CurrentDefilteredPixel(x) = CurrentFilteredPixel(x) + AboveDefilteredPixel(x)
+         * CurrentDefilteredByte(x) = CurrentFilteredByte(x) + AboveDefilteredByte(x)
          *
          * ---------
-         * |---|ADP|
-         * |---|CFP|
+         * |---|ADB|
+         * |---|CFB|
          * ---------
          *
-         * If there's no above defiltered pixel, it's 0, as all pixels above will be zero, for the first defiltered scanline
-         * for this filter, we leave the entire filtered scanline as is in the defiltered scanline.
+         * This filter depends on the previous scanline to the one being processed,
+         * if there's none yet, the entire previous scanline must be treated as a scanline of zeroes,
+         * being that the case, the current scanline being processed will be left as is: value + 0 = value
          *
          * -----------------------------------------------------------------------------------------------------------------
          *
          * Average filter formula:
          *
-         * CurrentFilteredPixel(x) = CurrentRawPixel(x) - rounded_down((AboveFilteredPixel(x) + PreviousFilteredPixel(x) / 2))
+         * CurrentFilteredByte(x) = CurrentRawByte(x) - rounded_down((AboveFilteredByte(x) + PreviousFilteredByte(x) / 2))
          *
          * To defilter, we sum the average instead of subtracting.
          *
-         * CurrentDefilteredPixel(x) = CurrentFilteredPixel(x) + rounded_down((AboveDefilteredPixel(x) + PreviousDefilteredPixel(x) / 2))
+         * CurrentDefilteredByte(x) = CurrentFilteredByte(x) + rounded_down((AboveDefilteredByte(x) + PreviousDefilteredByte(x) / 2))
          *
          * ---------
-         * |---|ADP|
-         * |PDP|CFP|
+         * |---|ADB|
+         * |PDB|CFB|
          * ---------
          *
-         * If there's no above defiltered pixel, it's 0, as all pixels above will be zero, for the first defiltered scanline
-         * for this filter, if there's no previous defiltered pixel, it's also 0.
+         * This filter depends on the previous scanline to the current one being processed,
+         * if there's none yet, the entire previous scanline must be treated as a scanline of zeroes,
+         * and if there's no byte before the one currently being processed it's also 0.
          *
          * -----------------------------------------------------------------------------------------------------------------
          *
          * Paeth filter formula:
          *
-         * CurrentFilteredPixel(x) =
-         * CurrentRawPixel(x) - PaethPredictor(PreviousFilteredPixel(x), AboveFilteredPixel(x), UpperLeftFilteredPixel(x))
+         * CurrentFilteredByte(x) =
+         * CurrentRawByte(x) - PaethPredictor(PreviousFilteredByte(x), AboveFilteredByte(x), UpperLeftFilteredByte(x))
          *
          * To defilter instead of subtracting the result of the paeth predictor, we sum it.
          *
@@ -364,11 +402,16 @@ void Scanlines::defilterData(utils::CBytes& filtered_data, utils::Bytes& defilte
          *                  else Above if PredictorAbove <= PredictorUpperLeft
          *                  else UpperLeft
          *
+         * This filter depends on the previous scanline to the current one being processed,
+         * if there's none yet, the entire previous scanline must be treated as a scanline of zeroes,
+         * and if there's no byte before the one currently being processed it's also 0.
+         *
          * ---------
-         * |UAP|ADP|
-         * |PDP|CFP|
+         * |UDB|ADB|
+         * |PDB|CFB|
          * ---------
         */
+
         switch (filter_type)
         {
             case NONE_FILTER_TYPE:
@@ -436,28 +479,36 @@ void Scanlines::defilterSubFilter
     uint8_t left_of_current {0};
 
     /*!
-     * Remember the rule, if there isn't a previous pixel, it's 0,
-     * this would be the equivalent of doing (current pixel + 0), which would be the current pixel itself.
+     * Remember the rule, if there isn't a previous byte, it's 0,
+     * this would be the equivalent of doing (current byte + 0), which would be the current byte itself.
      *
      * So we copy the first pixel as is to our unfiltered scanline.
+     *
+     * The entire pixel, because we operate on a per byte basis, if there's no byte before to match each channel,
+     * we leave all the channels of the first byte as is.
+     *
+     * For bit depth less than 8 we treat the whole packed pixels as one thing,
+     * instead of doing this per channel matching on each bit.
     */
     std::copy
     (
         filtered_scanline_begin,
-        filtered_scanline_begin + m_bytes_per_pixel,
+        filtered_scanline_begin + m_stride,
         defiltered_scanline_begin
     );
 
     /*!
-     * We already processed the "current pixel", then point to the start of the "next pixel".
+     * We already processed the "current byte", so point to the start of the "next byte".
+     * Remember, each byte must match its equivalent "channel byte" (red with red, green with green, etc),
+     * and for packed pixels, or single channel the rule is the same, byte with byte, not bit with bit.
     */
-    filtered_scanline_begin += m_bytes_per_pixel;
-    defiltered_scanline_begin += m_bytes_per_pixel;
+    filtered_scanline_begin += m_stride;
+    defiltered_scanline_begin += m_stride;
 
     for (;filtered_scanline_begin != filtered_scanline_end; ++filtered_scanline_begin, ++defiltered_scanline_begin)
     {
         current = static_cast<uint8_t>(*filtered_scanline_begin);
-        left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_bytes_per_pixel));
+        left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_stride));
         *defiltered_scanline_begin = utils::Byte(current + left_of_current);
     }
 } // Scalines::defilterSubFilter
@@ -476,17 +527,20 @@ void Scanlines::defilterUpFilter(
     if (previous_defiltered_scanline_begin == previous_defiltered_scanline_end)
     {
         /*!
-         * If there's no previous pixel or scanline, assume it's 0,
-         * which for defiltering the Up filter, is just the filtered scanline itself.
+         * If there's no byte before the current one or a previous scanline the one currently being processed,
+         * assume it's 0, which for defiltering the Up filter, is the filtered scanline itself.
          *
-         * CurrentDefilteredPixel(x) = CurrentFilteredPixel(x) + CurrentDefilteredPixelAbove(x),
+         * CurrentDefilteredByte(x) = CurrentFilteredByte(x) + AboveCurrentDefilteredByte(x),
          *
-         * CurrentDefilteredPixelAbove(x) will always be 0, so we leave the entire scanline as is.
+         * AboveCurrentDefilteredPixel(x) will always be 0, so we leave the entire scanline as is.
         */
         std::copy(filtered_scanline_begin, filtered_scanline_end, defiltered_scanline_begin);
         return;
     }
 
+    /*!
+     * We have a previous scanline, so the defiltering continues normally.
+    */
     for (;filtered_scanline_begin != filtered_scanline_end;
         ++filtered_scanline_begin,
         ++defiltered_scanline_begin,
@@ -517,7 +571,8 @@ void Scanlines::defilterAverageFilter
         /*!
          * The formula to defilter average filter is:
          *
-         * CurrentDefilteredPixel(x) = CurrentFilteredPixel(x) + rounded_down(PreviousDefilteredPixel(x) + AboveDefilteredPixel(x) / 2)
+         * CurrentDefilteredByte(x) =
+         * CurrentFilteredByte(x) + rounded_down(PreviousDefilteredByte(x) + AboveCurrentDefilteredByte(x) / 2)
          *
          * If there's no previous scanline, it's 0, and as we just starting to process this scanline,
          * there isn't any previous pixel yet. The above would expand to:
@@ -526,26 +581,28 @@ void Scanlines::defilterAverageFilter
          * CurrentDefilteredPixel(x) = CurrentFilteredPixel(x) + 0
          * CurrentDefilteredPixel(x) = CurrentFilteredPixel(x)
          *
-         * In other words we just copy the pixel as is to the current scanline being processed.
+         * In other words we just copy the bytes as is to the current scanline being processed
+         * to have a start value.
         */
-
         std::copy
         (
             filtered_scanline_begin,
-            filtered_scanline_begin + m_bytes_per_pixel,
+            filtered_scanline_begin + m_stride,
             defiltered_scanline_begin
         );
 
         /*!
-         * Point to the next pixel.
+         * We already processed the "current byte", so point to the start of the "next byte".
+         * Remember, each byte must match its equivalent "channel byte" (red with red, green with green, etc),
+         * and for packed pixels, or single channel the rule is the same, byte with byte, not bit with bit.
         */
-        filtered_scanline_begin += m_bytes_per_pixel;
-        defiltered_scanline_begin += m_bytes_per_pixel;
+        filtered_scanline_begin += m_stride;
+        defiltered_scanline_begin += m_stride;
 
         for (;filtered_scanline_begin != filtered_scanline_end; ++filtered_scanline_begin, ++defiltered_scanline_begin)
         {
             current = static_cast<uint8_t>(*filtered_scanline_begin);
-            left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_bytes_per_pixel));
+            left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_stride));
             *defiltered_scanline_begin = utils::Byte(current + std::floor(left_of_current / 2));
         }
 
@@ -553,21 +610,21 @@ void Scanlines::defilterAverageFilter
     }
 
     /*!
-     * This handles the case where we have a previous scanline, but not a previous pixel yet,
-     * differently from the Sub filter, we can't simply copy the first pixel as is,
-     * the operation doesn't need only the previous pixel, but also the above to the average and we have that.
+     * This handles the case where we have a previous scanline, but not a previous byte yet,
+     * differently from the Sub filter, we can't simply copy the first bytes as is,
+     * the operation doesn't need only the previous byte, but also the above to the average and we have that.
      *
      * So it becomes:
      *
-     * CurrentDefilteredPixel(x) = CurrentFilteredPixel(x) + rounded_down(0 + AboveDefilteredPixel(x) / 2)
-     * CurrentDefilteredPixel(x) = CurrentFilteredPixel(x) + rounded_down(AboveDefilteredPixel(x) / 2)
+     * CurrentDefilteredByte(x) = CurrentFilteredByte(x) + rounded_down(0 + AboveCurrentDefilteredByte(x) / 2)
+     * CurrentDefilteredByte(x) = CurrentFilteredByte(x) + rounded_down(AboveDefilteredByte(x) / 2)
      *
     */
 
-    auto current_pixel_end = filtered_scanline_begin + m_bytes_per_pixel;
+    auto initial_stride_end = filtered_scanline_begin + m_stride;
 
     for (
-        ;filtered_scanline_begin != current_pixel_end;
+        ;filtered_scanline_begin != initial_stride_end;
         ++filtered_scanline_begin,
         ++defiltered_scanline_begin,
         ++previous_defiltered_scanline_begin
@@ -579,7 +636,7 @@ void Scanlines::defilterAverageFilter
     }
 
     /*!
-     * The above had the iterators pointing to the next pixel already.
+     * The iterators above are already pointing to the right byte to be processed.
     */
     for (
         ;filtered_scanline_begin != filtered_scanline_end;
@@ -589,7 +646,7 @@ void Scanlines::defilterAverageFilter
     )
     {
         current = static_cast<uint8_t>(*filtered_scanline_begin);
-        left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_bytes_per_pixel));
+        left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_stride));
         above_current = static_cast<uint8_t>(*previous_defiltered_scanline_begin);
         *defiltered_scanline_begin = utils::Byte(current + std::floor((left_of_current + above_current) / 2));
     }
@@ -612,32 +669,32 @@ void Scanlines::defilterPaethFilter
     /*!
      * The paeth filter formula goes as:
      *
-     * CurrentFilteredPixel(x) =
-     * CurrentRawPixel(x) - PaethPredictor(PreviousFilteredPixel(x), AboveFilteredPixel(x), UpperLeftFilteredPixel(x))
+     * CurrentFilteredByte(x) =
+     * CurrentRawByte(x) - PaethPredictor(PreviousFilteredByte(x), AboveFilteredByte(x), UpperLeftFilteredByte(x))
      *
      * The formula to revert the paeth filter is:
      *
-     * CurrentDefilteredPixel(x) =
-     * CurrentFilteredPixel(x) + PaethPredictor(PreviousDefilteredPixel(x), AboveDefilteredPixel(x), UpperLeftDefilteredPixel(x))
-     *
+     * CurrentDefilteredByte(x) =
+     * CurrentFilteredByte(x) + PaethPredictor(PreviousDefilteredByte(x), AboveCurrentDefilteredByte(x), UpperLeftDefilteredByte(x))
     */
 
     /*!
-     * When there's no previous scanline, there won't be above or upper left pixels, they will be 0, the property of the
+     * When there's no previous scanline, there won't be above or upper left bytes, they will all be 0, the property of the
      * paeth predictor is that it will return the non-zero value provided to it, as long as the other two values are 0.
-     * In the case above, where there's no previous scanline, it would always return the value of the left pixel.
+     * In the case above, where there's no previous scanline,
+     * it would always return the value of the byte before the one being processed.
     */
     if (previous_defiltered_scanline_begin == previous_defiltered_scanline_end)
     {
         /*!
          * Here is as if the left, above and upper left were 0, if we passed all zeroes to the paeth predictor,
-         * it would return 0, summing the current filtered pixel to zero would result in the filtered pixel itself,
+         * it would return 0, summing the current filtered byte to zero would result in the filtered byte itself,
          * so we copy it as is.
         */
-        std::copy(filtered_scanline_begin, filtered_scanline_begin + m_bytes_per_pixel, defiltered_scanline_begin);
+        std::copy(filtered_scanline_begin, filtered_scanline_begin + m_stride, defiltered_scanline_begin);
 
-        filtered_scanline_begin += m_bytes_per_pixel;
-        defiltered_scanline_begin += m_bytes_per_pixel;
+        filtered_scanline_begin += m_stride;
+        defiltered_scanline_begin += m_stride;
 
         for (
             ;filtered_scanline_begin != filtered_scanline_end;
@@ -646,7 +703,7 @@ void Scanlines::defilterPaethFilter
         )
         {
             current = static_cast<uint8_t>(*filtered_scanline_begin);
-            left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_bytes_per_pixel));
+            left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_stride));
             *defiltered_scanline_begin = utils::Byte(current + left_of_current);
         }
 
@@ -655,13 +712,13 @@ void Scanlines::defilterPaethFilter
 
     /*!
      * This is the case where we have a previous scanline, but as we are at the beginning of it,
-     * there's no previous pixel for the current filtered pixel and there's no upper left pixel for the current filtered pixel,
-     * but there's a defiltered pixel above the current filtered pixel.
+     * there's no previous byte for the current filtered byte and there's no upper left byte for the current filtered byte,
+     * but there's a defiltered byte above the current filtered byte.
      *
-     * Passing this above pixel to the paeth predictor, and zero for the other values, would return the above pixel itself,
-     * so we just sum the current filtered pixel to this defiltered pixel above.
+     * Passing this above byte to the paeth predictor, and zero for the other values, would return the above byte itself,
+     * so we just sum the current filtered byte to this defiltered byte above.
     */
-    auto current_pixel_end = filtered_scanline_begin + m_bytes_per_pixel;
+    auto current_pixel_end = filtered_scanline_begin + m_stride;
 
     for (
         ;filtered_scanline_begin != current_pixel_end;
@@ -674,6 +731,9 @@ void Scanlines::defilterPaethFilter
         *defiltered_scanline_begin = utils::Byte(current + above_current);
     }
 
+    /*!
+     * All edge cases handled, we continue the defilter as normal.
+    */
     for (
         ;filtered_scanline_begin != filtered_scanline_end;
         ++filtered_scanline_begin,
@@ -682,9 +742,9 @@ void Scanlines::defilterPaethFilter
     )
     {
         current = static_cast<uint8_t>(*filtered_scanline_begin);
-        left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_bytes_per_pixel));
+        left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_stride));
         above_current = static_cast<uint8_t>(*previous_defiltered_scanline_begin);
-        upper_left_of_current = static_cast<uint8_t>(*(previous_defiltered_scanline_begin - m_bytes_per_pixel));
+        upper_left_of_current = static_cast<uint8_t>(*(previous_defiltered_scanline_begin - m_stride));
         *defiltered_scanline_begin = utils::Byte(current + paethPredictor(left_of_current, above_current, upper_left_of_current));
     }
 } // Scanlines::defilterPaethFilter

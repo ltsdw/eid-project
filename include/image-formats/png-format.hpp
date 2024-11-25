@@ -56,19 +56,19 @@ namespace image_formats::png_format
      *      - Compression method is always DEFLATE compression algorithm.
      *      - While there's only one filtering method, there's 5 types of filtering:
      *          - 0 = None
-     *          - 1 = Sub, where each byte in the scanline (after the first pixel),
-     *                the filter subtracts the value of the to the left in the same row.
-     *                To decode we add the previous pixel's value back to each byte in the scanline.
-     *          - 2 = Up, each byte is the difference between the pixel in the current scanline and the pixel
-     *                directly above it in the previous scanline.
-     *                And to decode we add the byte from the previous scanline (above) to the current byte.
-     *          - 3 = Average, where each byte is the difference between the current pixel
-     *                and the average of the left and above pixels.
-     *                To decode we take the average of the left and above pixels for each pixel,
-     *                then add it to the current byte.
-     *          - 4 = Paeth, uses the paeth algorithm which tries to estimate the value based on the left,
-     *                above, and upper-left pixels. It selects the pixel that is closest to the predicted value.
-     *                To decode we calculate the Paeth predictor and add it to the current byte.
+     *          - 1 = Sub, is the difference between the byte being processed and the byte before in the same scanline.
+     *                To decode we add the byte being processed back to the byte before it.
+     *          - 2 = Up, is the difference between the byte being processed and the byte right abobe in the previous scanline.
+     *                And to decode we add the byte being processed to the byte right above in the previous scanline.
+     *          - 3 = Average, is the difference between the byte being processed
+     *                and the average of the byte before in the same scanline and the byte above in the previous scanline.
+     *                To decode we take the same average and sum with the byte being processed.
+     *          - 4 = Paeth, is the difference of the byte being processed and the paeth predictor,
+     *                which uses an algorithm that estimate the value based
+     *                on the byte before the byte being processed, the byte right above above in the previous scanline,
+     *                and the upper left byte of the above byte.
+     *                It selects the byte that is closest to the predicted value.
+     *                To decode we calculate the paeth predictor and add it back to the byte being processed.
      *
      * - The next chunk will be PLTE (Palette), IF and only IF the color type is of type 3 (check the IHDR chunk color type),
      * this chunk is important where each pixel value is an index to a palette of colors.
@@ -110,7 +110,7 @@ namespace image_formats::png_format
 
         public:
             Scanlines() = default;
-            Scanlines(uint32_t width, uint32_t height, uint8_t bit_depth, uint8_t color_type);
+            Scanlines(uint32_t width, uint32_t height, uint8_t bit_depth, uint8_t color_type, uint8_t number_of_channels);
             Scanlines(const Scanlines&) = default;
             Scanlines(Scanlines&&) = default;
             Scanlines& operator=(const Scanlines&) = default;
@@ -175,9 +175,10 @@ namespace image_formats::png_format
                 int upper_left_of_current
             ) const noexcept;
         private:
-            uint8_t m_bytes_per_pixel{0};
-            utils::Bytes::difference_type m_scanline_size{0};
-            size_t m_scanlines_size{0};
+            uint8_t m_stride { 0 };
+            uint8_t m_number_of_channels { 0 };
+            utils::Bytes::difference_type m_scanline_size { 0 };
+            size_t m_scanlines_size { 0 };
     }; // Scalines
 
 
@@ -240,30 +241,37 @@ namespace image_formats::png_format
             /*!
              * getImageWidth
              *
-             * @return: Image width.
+             * @return: Image's width.
             */
             [[nodiscard]] uint32_t getImageWidth() const noexcept;
 
             /*!
              * getImageHeight
              *
-             * @return: Image height.
+             * @return: Image's height.
             */
             [[nodiscard]] uint32_t getImageHeight() const noexcept;
 
             /*!
              * getImageBitDepth
              *
-             * @return: Image bit depth.
+             * @return: Image's bit depth.
             */
             [[nodiscard]] uint8_t getImageBitDepth() const noexcept;
 
             /*!
              * getImageColorType
              *
-             * @return: Image color type.
+             * @return: Image's color type.
             */
             [[nodiscard]] uint8_t getImageColorType() const noexcept;
+
+            /*!
+             * getNumberOfChannels
+             *
+             * @return: Image's number of channels.
+            */
+            [[nodiscard]] uint8_t getImageNumberOfChannels() const;
 
             /*!
              * getRawDataConstRef
@@ -342,6 +350,7 @@ namespace image_formats::png_format
             std::ifstream m_image_stream;
             utils::Bytes m_signature { utils::Bytes(SIGNATURE_FIELD_BYTES_SIZE) };
             IHDRChunk m_ihdr {};
+            uint8_t m_number_of_channels { 0 };
             Scanlines m_scanlines;
             utils::Bytes m_defiltered_data;
     }; // PNGFormat
