@@ -44,6 +44,9 @@ target_link_libraries(
     ZLIB::ZLIB
 )
 
+# Add compiler flags
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/compiler-flags.cmake")
+
 # Install targets system-wide
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/eid-library-install.cmake")
 
