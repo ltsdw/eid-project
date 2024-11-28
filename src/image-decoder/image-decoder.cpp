@@ -179,17 +179,23 @@ ImageColorType ImageDecoder::getImageColorType() const
 
         switch ((*image)->getImageColorType())
         {
-            case 0x0:
+            case GRAYSCALE_COLOR_TYPE:
                 return ImageColorType::GRAYSCALE;
-            case 0x2:
+            case RGB_COLOR_TYPE:
                 return ImageColorType::RGB;
-            //TODO: Support indexed palette images
-            case 0x4:
+            case INDEXED_COLOR_TYPE:
+                return ImageColorType::INDEXED;
+            case GRAYSCALE_AND_ALPHA_COLOR_TYPE:
                 return ImageColorType::GRAYSCALE_ALPHA;
-            case 0x6:
+            case RGBA_COLOR_TYPE:
                 return ImageColorType::RGBA;
             default:
-                throw std::runtime_error(__func__ + std::string("\nColor type not supported.\n"));
+                throw std::runtime_error
+                (
+                    std::string("Color type not supported.\n")
+                    + __func__ + "\n"
+                    + std::to_string((*image)->getImageColorType()) + "\n"
+                );
         }
     }
 
@@ -199,25 +205,24 @@ ImageColorType ImageDecoder::getImageColorType() const
         + std::to_string(static_cast<uint8_t>(m_image_format_type))
         + " not implemented.\n"
     );
-
 } // ImageDecoder::getImageColorType
 
 uint8_t ImageDecoder::getImageNumberOfChannels() const
 {
-    switch (getImageColorType())
+    if (m_image_format_type == ImageFormat::PNG_FORMAT_TYPE)
     {
-        case image_decoder::ImageColorType::GRAYSCALE:
-            return 1;
-        case image_decoder::ImageColorType::GRAYSCALE_ALPHA:
-            return 2;
-        case image_decoder::ImageColorType::RGB:
-            return 3;
-        case image_decoder::ImageColorType::RGBA:
-            return 4;
-        default:
-            throw std::runtime_error("Color type not supported.\n");
-    };
-}
+        auto image = getPNGVariantData();
+
+        return (*image)->getImageNumberOfChannels();
+    }
+
+    throw std::runtime_error
+    (
+        "Format not implement: "
+        + std::to_string(static_cast<uint8_t>(m_image_format_type))
+        + " not implemented.\n"
+    );
+} // ImageDecoder::getImageNumberOfChannels
 
 size_t ImageDecoder::getImageScanlineSize() const
 {

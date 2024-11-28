@@ -19,10 +19,11 @@ namespace image_decoder
 
     enum class ImageColorType
     {
-        GRAYSCALE           = 0x1,
-        GRAYSCALE_ALPHA     = 0x2,
-        RGB                 = 0x3,
-        RGBA                = 0x4,
+        GRAYSCALE           = 0x0,
+        RGB                 = 0x2,
+        INDEXED             = 0x3,
+        GRAYSCALE_ALPHA     = 0x4,
+        RGBA                = 0x6,
     }; // enum class ImageColorType
 
     class ImageDecoder
@@ -123,6 +124,12 @@ namespace image_decoder
 
         private:
             using png_image_unique_ptr = std::unique_ptr<image_formats::png_format::PNGFormat>;
+
+            static constexpr uint8_t GRAYSCALE_COLOR_TYPE { 0 };
+            static constexpr uint8_t RGB_COLOR_TYPE { 2 };
+            static constexpr uint8_t INDEXED_COLOR_TYPE { 3 };
+            static constexpr uint8_t GRAYSCALE_AND_ALPHA_COLOR_TYPE { 4 };
+            static constexpr uint8_t RGBA_COLOR_TYPE { 6 };
 
         private:
             /*!

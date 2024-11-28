@@ -110,7 +110,7 @@ namespace image_formats::png_format
 
         public:
             Scanlines() = default;
-            Scanlines(uint32_t width, uint32_t height, uint8_t bit_depth, uint8_t color_type, uint8_t number_of_channels);
+            Scanlines(uint32_t width, uint32_t height, uint8_t bit_depth, uint8_t color_type, uint8_t number_of_samples);
             Scanlines(const Scanlines&) = default;
             Scanlines(Scanlines&&) = default;
             Scanlines& operator=(const Scanlines&) = default;
@@ -176,7 +176,7 @@ namespace image_formats::png_format
             ) const noexcept;
         private:
             uint8_t m_stride { 0 };
-            uint8_t m_number_of_channels { 0 };
+            uint8_t m_number_of_samples { 0 };
             utils::Bytes::difference_type m_scanline_size { 0 };
             size_t m_scanlines_size { 0 };
     }; // Scalines
@@ -198,7 +198,13 @@ namespace image_formats::png_format
            static constexpr uint8_t CRC_FIELD_BYTES_SIZE { 4 };
            static constexpr uint8_t SIGNATURE_FIELD_BYTES_SIZE { 8 };
            static constexpr uint8_t IHDR_CHUNK_BYTES_SIZE { 13 };
+           static constexpr uint8_t PLTE_CHUNK_MAX_SIZE { 255 };
            static constexpr uint32_t IHDR_CHUNK_TYPE { 0x49484452 };
+           static constexpr uint8_t GRAYSCALE_COLOR_TYPE { 0 };
+           static constexpr uint8_t RGB_COLOR_TYPE { 2 };
+           static constexpr uint8_t INDEXED_COLOR_TYPE { 3 };
+           static constexpr uint8_t GRAYSCALE_AND_ALPHA_COLOR_TYPE { 4 };
+           static constexpr uint8_t RGBA_COLOR_TYPE { 6 };
 
            struct Chunk
            {
@@ -342,14 +348,29 @@ namespace image_formats::png_format
              *
              * Fill each field of IHDR chunk with its respective raw data.
              *
+             * @param data: Vector containing data about the IHDR chunk.
+             *
              * @return
             */
             void fillIHDRData(utils::CBytes& data);
+
+            /*!
+             * fillPLTEData
+             *
+             * Fill the palette with colors from the PLTE chunk.
+             *
+             * @param data: Vector containing data about the PLTE chunk.
+             *
+             * @return
+            */
+            void fillPLTEData(utils::Bytes& data);
 
         private:
             std::ifstream m_image_stream;
             utils::Bytes m_signature { utils::Bytes(SIGNATURE_FIELD_BYTES_SIZE) };
             IHDRChunk m_ihdr {};
+            utils::Bytes m_palette {};
+            uint8_t m_number_of_samples { 0 };
             uint8_t m_number_of_channels { 0 };
             Scanlines m_scanlines;
             utils::Bytes m_defiltered_data;

@@ -34,37 +34,41 @@ PNGFormat::PNGFormat(const std::filesystem::path& image_filepath)
         if (utils::matches(chunk.m_chunk_type, "IHDR"))
         {
             fillIHDRData(chunk.m_chunk_data);
+        } else if (utils::matches(chunk.m_chunk_type, "PLTE"))
+        {
+            fillPLTEData(chunk.m_chunk_data);
         } else if (utils::matches(chunk.m_chunk_type, "IDAT"))
         {
             z_lib_stream_manager.decompressData(chunk.m_chunk_data, decompressed_data);
         }
     }
 
-    m_number_of_channels =
-        (m_ihdr.color_type == 0x0) ? 1 :
-        (m_ihdr.color_type == 0x2) ? 3 :
-        //TODO: Add support indexed color
-        (m_ihdr.color_type == 0x4) ? 2 :
-        (m_ihdr.color_type == 0x6) ? 4 :
+    m_number_of_samples =
+        (m_ihdr.color_type == GRAYSCALE_COLOR_TYPE)             ? 1 :
+        (m_ihdr.color_type == RGB_COLOR_TYPE)                   ? 3 :
+        (m_ihdr.color_type == INDEXED_COLOR_TYPE)               ? 1 :
+        (m_ihdr.color_type == GRAYSCALE_AND_ALPHA_COLOR_TYPE)   ? 2 :
+        (m_ihdr.color_type == RGBA_COLOR_TYPE)                  ? 4 :
         throw std::runtime_error
         (
             std::string("Color type not supported.\n")
             + __func__ + "\n"
             + std::to_string((uint32_t)m_ihdr.color_type) + "\n"
         );
-
+    m_number_of_channels = (m_ihdr.color_type == INDEXED_COLOR_TYPE) ? 3 : m_number_of_samples;
     uint32_t width = getImageWidth();
     uint32_t height = getImageHeight();
-    // Start scanlines structure
-    m_scanlines = Scanlines(
+    // Create the scanlines structures to be defiltered
+    m_scanlines = Scanlines
+    (
         width,
         height,
         m_ihdr.bit_depth,
         m_ihdr.color_type,
-        m_number_of_channels
+        m_number_of_samples
     );
 
-    // Defilter the scanlines
+    // Defilter each scanline
     m_scanlines.defilterData(decompressed_data, m_defiltered_data);
 } // PNGFormat::PNGFormat
 
@@ -149,6 +153,21 @@ void PNGFormat::fillIHDRData(utils::CBytes& data)
     m_ihdr.interlaced_method = utils::readAndAdvanceIter<uint8_t>(begin, end);
 } // PNGFormat::fillIHDRData
 
+void PNGFormat::fillPLTEData(utils::Bytes& data)
+{
+    if ((data.size() > PLTE_CHUNK_MAX_SIZE))
+    {
+        throw std::runtime_error
+        (
+            std::string("PLTE chunk have unsupported size: ")
+            + std::to_string(data.size())
+            + "\n"
+        );
+    }
+
+    m_palette = std::move(data);
+} // PNGFormat::fillPLTEData
+
 size_t PNGFormat::getImageScanlinesSize() const noexcept
 {
     return m_scanlines.getScanlinesSize();
@@ -197,7 +216,6 @@ uint8_t PNGFormat::getImageColorType() const noexcept
 uint8_t PNGFormat::getImageNumberOfChannels() const
 {
     return m_number_of_channels;
-
 } // PNGFormat::getImageNumberOfChannels
 
 void PNGFormat::swapBytesOrder()
@@ -216,10 +234,10 @@ Scanlines::Scanlines
     uint32_t height,
     uint8_t bit_depth,
     uint8_t color_type,
-    uint8_t number_of_channels
+    uint8_t number_of_samples
 )
 {
-    m_number_of_channels = number_of_channels;
+    m_number_of_samples = number_of_samples;
     /*!
      * The stride will tell the distance between one byte and the next byte needed to do operations like defiltering.
      * In other words, the byte channel of one pixel, must match the byte of
@@ -235,8 +253,8 @@ Scanlines::Scanlines
      * The + 7 is a way of rounding up to an entire byte, so for bit depths like 1 and 2, it counts as an entire byte,
      * instead of reporting 0 bytes.
     */
-    m_stride = ((bit_depth * m_number_of_channels + 7) / 8);
-    m_scanline_size = static_cast<utils::Bytes::difference_type>(width) * bit_depth * m_number_of_channels / 8;
+    m_stride = ((bit_depth * m_number_of_samples + 7) / 8);
+    m_scanline_size = (static_cast<utils::Bytes::difference_type>(width) * bit_depth * m_number_of_samples + 7) / 8;
     m_scanlines_size = m_scanline_size * height;
 } // Scalines::Scalines
 
