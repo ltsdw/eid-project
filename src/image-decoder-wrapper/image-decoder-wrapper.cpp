@@ -6,25 +6,6 @@ struct ImageDecoderWrapper
     image_decoder::ImageDecoder* image_decoder;
 };
 
-
-static ImageColorType getImageColorType(image_decoder::ImageColorType image_color_type)
-{
-    switch (image_color_type)
-    {
-        case image_decoder::ImageColorType::GRAYSCALE:
-                return GRAYSCALE;
-        case image_decoder::ImageColorType::RGB:
-            return RGB;
-        //TODO: Support indexed palette images
-        case image_decoder::ImageColorType::GRAYSCALE_ALPHA:
-            return GRAYSCALE_ALPHA;
-        case image_decoder::ImageColorType::RGBA:
-            return RGBA;
-        default:
-            return INVALID_COLOR_TYPE;
-    }
-}
-
 ImageDecoderWrapper* createImageDecoderInstance
 (
     const char* image_filepath,
@@ -46,11 +27,26 @@ ImageDecoderWrapper* createImageDecoderInstance
         image_decoder_wrapper->image_decoder = new image_decoder::ImageDecoder(image_filepath);
         *image_width = image_decoder_wrapper->image_decoder->getImageWidth();
         *image_height = image_decoder_wrapper->image_decoder->getImageHeight();
-        *image_color_type = getImageColorType(image_decoder_wrapper->image_decoder->getImageColorType());
         *image_bit_depth = image_decoder_wrapper->image_decoder->getImageBitDepth();
         *image_number_of_channels = image_decoder_wrapper->image_decoder->getImageNumberOfChannels();
         *image_scanline_size = image_decoder_wrapper->image_decoder->getImageScanlineSize();
         *image_scanlines_size = image_decoder_wrapper->image_decoder->getImageScanlinesSize();
+
+        switch (image_decoder_wrapper->image_decoder->getImageColorType())
+        {
+            case utils::typings::GRAYSCALE_COLOR_TYPE:
+                *image_color_type = GRAYSCALE_COLOR_TYPE;
+            case utils::typings::RGB_COLOR_TYPE:
+                *image_color_type = RGB_COLOR_TYPE;
+            case utils::typings::INDEXED_COLOR_TYPE:
+                *image_color_type = INDEXED_COLOR_TYPE;
+            case utils::typings::RGBA_COLOR_TYPE:
+                *image_color_type = RGBA_COLOR_TYPE;
+            case utils::typings::GRAYSCALE_AND_ALPHA_COLOR_TYPE:
+                *image_color_type = GRAYSCALE_COLOR_TYPE;
+            default:
+                throw std::runtime_error(__func__ + std::string("\nInvalid color type.\n"));
+        }
     } catch (const std::exception& e)
     {
         *error = e.what();

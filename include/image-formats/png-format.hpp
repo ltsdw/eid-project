@@ -4,7 +4,7 @@
 #include <filesystem>
 #include <fstream>
 
-#include "utils/utils.hpp"
+#include "utils/typings.hpp"
 
 namespace image_formats::png_format
 {
@@ -103,10 +103,10 @@ namespace image_formats::png_format
             static constexpr uint8_t AVERAGE_FILTER_TYPE {0x3};
             static constexpr uint8_t PAETH_FILTER_TYPE {0x4};
 
-            using ScanlineBegin = utils::Bytes::iterator;
-            using ScanlineEnd = utils::Bytes::iterator;
-            using CScanlineBegin = utils::Bytes::const_iterator;
-            using CScanlineEnd = utils::Bytes::const_iterator;
+            using ScanlineBegin = utils::typings::Bytes::iterator;
+            using ScanlineEnd = utils::typings::Bytes::iterator;
+            using CScanlineBegin = utils::typings::Bytes::const_iterator;
+            using CScanlineEnd = utils::typings::Bytes::const_iterator;
 
         public:
             Scanlines() = default;
@@ -124,7 +124,7 @@ namespace image_formats::png_format
              * @param filtered_data: Filtered data to be defiltered.
              * @return
             */
-            void defilterData(utils::CBytes& filtered_data, utils::Bytes& defiltered_data);
+            void defilterData(utils::typings::CBytes& filtered_data, utils::typings::Bytes& defiltered_data);
 
             /*!
              * getScanlineSize
@@ -177,7 +177,7 @@ namespace image_formats::png_format
         private:
             uint8_t m_stride { 0 };
             uint8_t m_number_of_samples { 0 };
-            utils::Bytes::difference_type m_scanline_size { 0 };
+            utils::typings::Bytes::difference_type m_scanline_size { 0 };
             size_t m_scanlines_size { 0 };
     }; // Scalines
 
@@ -193,23 +193,23 @@ namespace image_formats::png_format
             PNGFormat& operator=(const PNGFormat&&) = delete;
 
         private:
-           static constexpr uint8_t CHUNK_TYPE_FIELD_BYTES_SIZE { 4 };
-           static constexpr uint8_t CHUNK_LENGTH_FIELD_BYTES_SIZE { 4 };
-           static constexpr uint8_t CRC_FIELD_BYTES_SIZE { 4 };
-           static constexpr uint8_t SIGNATURE_FIELD_BYTES_SIZE { 8 };
-           static constexpr uint8_t IHDR_CHUNK_BYTES_SIZE { 13 };
-           static constexpr uint8_t PLTE_CHUNK_MAX_SIZE { 255 };
-           static constexpr uint32_t IHDR_CHUNK_TYPE { 0x49484452 };
-           static constexpr uint8_t GRAYSCALE_COLOR_TYPE { 0 };
-           static constexpr uint8_t RGB_COLOR_TYPE { 2 };
-           static constexpr uint8_t INDEXED_COLOR_TYPE { 3 };
-           static constexpr uint8_t GRAYSCALE_AND_ALPHA_COLOR_TYPE { 4 };
-           static constexpr uint8_t RGBA_COLOR_TYPE { 6 };
+           static constexpr uint8_t  CHUNK_TYPE_FIELD_BYTES_SIZE    { 4 };
+           static constexpr uint8_t  CHUNK_LENGTH_FIELD_BYTES_SIZE  { 4 };
+           static constexpr uint8_t  CRC_FIELD_BYTES_SIZE           { 4 };
+           static constexpr uint8_t  SIGNATURE_FIELD_BYTES_SIZE     { 8 };
+           static constexpr uint8_t  IHDR_CHUNK_BYTES_SIZE          { 13 };
+           static constexpr uint8_t  PLTE_CHUNK_MAX_SIZE            { 255 };
+           static constexpr uint32_t IHDR_CHUNK_TYPE                { 0x49484452 };
+           static constexpr uint8_t  GRAYSCALE_COLOR_TYPE           { 0 };
+           static constexpr uint8_t  RGB_COLOR_TYPE                 { 2 };
+           static constexpr uint8_t  INDEXED_COLOR_TYPE             { 3 };
+           static constexpr uint8_t  GRAYSCALE_AND_ALPHA_COLOR_TYPE { 4 };
+           static constexpr uint8_t  RGBA_COLOR_TYPE                { 6 };
 
            struct Chunk
            {
-               utils::Bytes m_chunk_type{utils::Bytes(CHUNK_TYPE_FIELD_BYTES_SIZE)};
-               utils::Bytes m_chunk_data;
+               utils::typings::Bytes m_chunk_type{utils::typings::Bytes(CHUNK_TYPE_FIELD_BYTES_SIZE)};
+               utils::typings::Bytes m_chunk_data;
            };
 
            #pragma pack(push, 1)
@@ -285,14 +285,14 @@ namespace image_formats::png_format
              * @return: A const reference for the internal defiltered vector bytes,
              * make a copy the vector if the class must go out scope or use getRawDataCopy to get a copy.
             */
-            [[nodiscard]] [[deprecated("Use getRawDataCopy instead.")]] utils::CBytes& getRawDataConstRef() noexcept;
+            [[nodiscard]] [[deprecated("Use getRawDataCopy instead.")]] utils::typings::CBytes& getRawDataConstRef() noexcept;
 
             /*!
              * getRawDataCopy
              *
              * @return: A copy for the internal defiltered vector bytes.
             */
-            [[nodiscard]] utils::Bytes getRawDataCopy() noexcept;
+            [[nodiscard]] utils::typings::Bytes getRawDataCopy() noexcept;
 
             /*!
              * getRawDataBuffer
@@ -320,7 +320,7 @@ namespace image_formats::png_format
              * @param n_bytes: Number of bytes which should be read into data vector.
              * @return
             */
-            void readNBytes(utils::Bytes& data, std::streamsize n_bytes);
+            void readNBytes(utils::typings::Bytes& data, std::streamsize n_bytes);
 
             /*!
              * readNBytes
@@ -352,7 +352,7 @@ namespace image_formats::png_format
              *
              * @return
             */
-            void fillIHDRData(utils::CBytes& data);
+            void fillIHDRData(utils::typings::CBytes& data);
 
             /*!
              * fillPLTEData
@@ -363,16 +363,16 @@ namespace image_formats::png_format
              *
              * @return
             */
-            void fillPLTEData(utils::Bytes& data);
+            void fillPLTEData(utils::typings::Bytes& data);
 
         private:
             std::ifstream m_image_stream;
-            utils::Bytes m_signature { utils::Bytes(SIGNATURE_FIELD_BYTES_SIZE) };
+            utils::typings::Bytes m_signature { utils::typings::Bytes(SIGNATURE_FIELD_BYTES_SIZE) };
+            utils::typings::Bytes m_palette;
             IHDRChunk m_ihdr {};
-            utils::Bytes m_palette {};
             uint8_t m_number_of_samples { 0 };
             uint8_t m_number_of_channels { 0 };
+            utils::typings::Bytes m_defiltered_data;
             Scanlines m_scanlines;
-            utils::Bytes m_defiltered_data;
     }; // PNGFormat
 }; // namespace image_formats::png_format

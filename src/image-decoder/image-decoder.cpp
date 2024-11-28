@@ -1,5 +1,7 @@
+#include <cstring>
 #include <iostream>
 
+#include "image-formats/png-format.hpp"
 #include "image-decoder/image-decoder.hpp"
 
 namespace image_decoder
@@ -22,6 +24,10 @@ ImageDecoder::ImageDecoder(const std::filesystem::path& image_filepath)
     // TODO: Implement the rest of the logic
 }
 
+ImageDecoder::~ImageDecoder() = default;
+ImageDecoder::ImageDecoder(ImageDecoder&&) = default;
+ImageDecoder& ImageDecoder::operator=(ImageDecoder&&) = default;
+
 void ImageDecoder::loadPNGImage(const std::filesystem::path& image_filepath)
 {
     m_data = std::make_unique<image_formats::png_format::PNGFormat>(image_filepath);
@@ -33,7 +39,7 @@ void ImageDecoder::loadPNGImage(const std::filesystem::path& image_filepath)
         std::exit(EXIT_FAILURE);
     }
 
-    m_image_format_type = ImageFormat::PNG_FORMAT_TYPE;
+    m_image_format_type = utils::typings::ImageFormat::PNG_FORMAT_TYPE;
 } // ImageDecoder::loadPNGImage
 
 ImageDecoder::png_image_unique_ptr* ImageDecoder::getPNGVariantData() noexcept
@@ -64,9 +70,9 @@ const ImageDecoder::png_image_unique_ptr* ImageDecoder::getPNGVariantData() cons
     return image;
 } // ImageDecoder::getPNGVariantData
 
-utils::CBytes& ImageDecoder::getRawDataConstRef()
+utils::typings::CBytes& ImageDecoder::getRawDataConstRef()
 {
-    if (m_image_format_type == ImageFormat::PNG_FORMAT_TYPE)
+    if (m_image_format_type == utils::typings::ImageFormat::PNG_FORMAT_TYPE)
     {
         auto image = getPNGVariantData();
 
@@ -81,9 +87,9 @@ utils::CBytes& ImageDecoder::getRawDataConstRef()
     );
 } // ImageDecoder::getRawDataRef
 
-utils::Bytes ImageDecoder::getRawDataCopy()
+utils::typings::Bytes ImageDecoder::getRawDataCopy()
 {
-    if (m_image_format_type == ImageFormat::PNG_FORMAT_TYPE)
+    if (m_image_format_type == utils::typings::ImageFormat::PNG_FORMAT_TYPE)
     {
         auto image = getPNGVariantData();
 
@@ -100,7 +106,7 @@ utils::Bytes ImageDecoder::getRawDataCopy()
 
 uint8_t* ImageDecoder::getRawDataBuffer()
 {
-    if (m_image_format_type == ImageFormat::PNG_FORMAT_TYPE)
+    if (m_image_format_type == utils::typings::ImageFormat::PNG_FORMAT_TYPE)
     {
         auto image = getPNGVariantData();
 
@@ -121,7 +127,7 @@ uint8_t* ImageDecoder::getRawDataBuffer()
 
 uint32_t ImageDecoder::getImageWidth() const
 {
-    if (m_image_format_type == ImageFormat::PNG_FORMAT_TYPE)
+    if (m_image_format_type == utils::typings::ImageFormat::PNG_FORMAT_TYPE)
     {
         auto image = getPNGVariantData();
 
@@ -139,7 +145,7 @@ uint32_t ImageDecoder::getImageWidth() const
 
 uint32_t ImageDecoder::getImageHeight() const
 {
-    if (m_image_format_type == ImageFormat::PNG_FORMAT_TYPE)
+    if (m_image_format_type == utils::typings::ImageFormat::PNG_FORMAT_TYPE)
     {
         auto image = getPNGVariantData();
 
@@ -156,7 +162,7 @@ uint32_t ImageDecoder::getImageHeight() const
 
 uint8_t ImageDecoder::getImageBitDepth() const
 {
-    if (m_image_format_type == ImageFormat::PNG_FORMAT_TYPE)
+    if (m_image_format_type == utils::typings::ImageFormat::PNG_FORMAT_TYPE)
     {
         auto image = getPNGVariantData();
 
@@ -171,24 +177,24 @@ uint8_t ImageDecoder::getImageBitDepth() const
     );
 } // ImageDecoder::getImageBitDepth
 
-ImageColorType ImageDecoder::getImageColorType() const
+utils::typings::ImageColorType ImageDecoder::getImageColorType() const
 {
-    if (m_image_format_type == ImageFormat::PNG_FORMAT_TYPE)
+    if (m_image_format_type == utils::typings::ImageFormat::PNG_FORMAT_TYPE)
     {
         auto image = getPNGVariantData();
 
         switch ((*image)->getImageColorType())
         {
             case GRAYSCALE_COLOR_TYPE:
-                return ImageColorType::GRAYSCALE;
+                return utils::typings::ImageColorType::GRAYSCALE_COLOR_TYPE;
             case RGB_COLOR_TYPE:
-                return ImageColorType::RGB;
+                return utils::typings::ImageColorType::RGBA_COLOR_TYPE;
             case INDEXED_COLOR_TYPE:
-                return ImageColorType::INDEXED;
+                return utils::typings::ImageColorType::INDEXED_COLOR_TYPE;
             case GRAYSCALE_AND_ALPHA_COLOR_TYPE:
-                return ImageColorType::GRAYSCALE_ALPHA;
+                return utils::typings::ImageColorType::GRAYSCALE_AND_ALPHA_COLOR_TYPE;
             case RGBA_COLOR_TYPE:
-                return ImageColorType::RGBA;
+                return utils::typings::ImageColorType::RGBA_COLOR_TYPE;
             default:
                 throw std::runtime_error
                 (
@@ -209,7 +215,7 @@ ImageColorType ImageDecoder::getImageColorType() const
 
 uint8_t ImageDecoder::getImageNumberOfChannels() const
 {
-    if (m_image_format_type == ImageFormat::PNG_FORMAT_TYPE)
+    if (m_image_format_type == utils::typings::ImageFormat::PNG_FORMAT_TYPE)
     {
         auto image = getPNGVariantData();
 
@@ -226,7 +232,7 @@ uint8_t ImageDecoder::getImageNumberOfChannels() const
 
 size_t ImageDecoder::getImageScanlineSize() const
 {
-    if (m_image_format_type == ImageFormat::PNG_FORMAT_TYPE)
+    if (m_image_format_type == utils::typings::ImageFormat::PNG_FORMAT_TYPE)
     {
         auto image = getPNGVariantData();
 
@@ -243,7 +249,7 @@ size_t ImageDecoder::getImageScanlineSize() const
 
 size_t ImageDecoder::getImageScanlinesSize() const
 {
-    if (m_image_format_type == ImageFormat::PNG_FORMAT_TYPE)
+    if (m_image_format_type == utils::typings::ImageFormat::PNG_FORMAT_TYPE)
     {
         auto image = getPNGVariantData();
 
@@ -261,7 +267,7 @@ size_t ImageDecoder::getImageScanlinesSize() const
 
 void ImageDecoder::swapBytesOrder()
 {
-    if (m_image_format_type == ImageFormat::PNG_FORMAT_TYPE)
+    if (m_image_format_type == utils::typings::ImageFormat::PNG_FORMAT_TYPE)
     {
         auto image = getPNGVariantData();
 

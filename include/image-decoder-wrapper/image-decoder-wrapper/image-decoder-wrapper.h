@@ -18,11 +18,12 @@ extern "C"
 
 typedef enum
 {
-    INVALID_COLOR_TYPE  = -0x1,
-    GRAYSCALE           = 0x1,
-    GRAYSCALE_ALPHA     = 0x2,
-    RGB                 = 0x3,
-    RGBA                = 0x4,
+    INVALID_COLOR_TYPE = -1,
+    GRAYSCALE_COLOR_TYPE,
+    RGB_COLOR_TYPE,
+    INDEXED_COLOR_TYPE,
+    GRAYSCALE_AND_ALPHA_COLOR_TYPE,
+    RGBA_COLOR_TYPE,
 } ImageColorType; // enum ImageColorType
 
 /*!

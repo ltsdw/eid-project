@@ -1,29 +1,14 @@
 #pragma once
 
 #include <cstring>
-#include <cstdint>
-#include <cstddef>
-#include <vector>
 #include <string>
 #include <stdexcept>
 #include <zlib.h>
 
+#include "utils/typings.hpp"
+
 namespace utils
 {
-    /*!
-     * Some structs and type aliases
-    */
-    using Byte = std::byte;
-
-    /*!
-     * We could use std::array for most part of the program where
-     * a structure has a fixed size, as signature, chunk types, etc.
-     * But for any other dynamic chain of bytes handling and passing std::array
-     * is really not viable, so we use std::vector instead.
-    */
-    using Bytes = std::vector<Byte>;
-    using CBytes = const std::vector<Byte>;
-
     /*!
      * These functions will be useful for converting from network byte order (big-endian) to little endian.
      * Although we should technically use the hton* and ntoh* functions variations from #include <arpa/inet.h>,
@@ -217,7 +202,7 @@ namespace utils
      * https://barrgroup.com/embedded-systems/how-to/crc-calculation-c-code
     */
     [[nodiscard]] uint32_t calculateCRC32(
-        CBytes& data,
+        typings::CBytes& data,
         uint32_t initial_value = 0xFFFFFFFF,
         uint32_t final_xor_value = 0xFFFFFFFF
     ) noexcept;
@@ -233,7 +218,7 @@ namespace utils
      * @param n_bytes: Number bytes from source that should be appened to destination vector.
      * @return
     */
-    void appendNBytes(Bytes& dest, CBytes& src, Bytes::difference_type n_bytes);
+    void appendNBytes(typings::Bytes& dest, typings::CBytes& src, typings::Bytes::difference_type n_bytes);
 
     /*!
      * matches
@@ -244,7 +229,7 @@ namespace utils
      * @param rhs: String to be matched agains the vector bytes.
      * @return: True if they match.
     */
-    bool matches(CBytes& lhs, const std::string& rhs) noexcept;
+    bool matches(typings::CBytes& lhs, const std::string& rhs) noexcept;
 
     /*!
      * readAndAdvanceIter
@@ -256,10 +241,10 @@ namespace utils
      * is less than the size necessary to create a type T
     */
     template <typename T>
-    T readAndAdvanceIter(Bytes::const_iterator& begin, Bytes::const_iterator& end)
+    T readAndAdvanceIter(typings::Bytes::const_iterator& begin, typings::Bytes::const_iterator& end)
     {
         T value;
-        auto size_type = static_cast<Bytes::difference_type>(sizeof(T));
+        auto size_type = static_cast<typings::Bytes::difference_type>(sizeof(T));
 
         if (std::distance(begin, end) < size_type)
         {
@@ -316,5 +301,4 @@ namespace utils
     {
         return (iterator >= begin_boundary and iterator <= end_boundary);
     }
-
 } // namespace utils

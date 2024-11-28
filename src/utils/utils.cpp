@@ -110,7 +110,7 @@ uint16_t convertFromNetworkByteOrder(uint16_t value)
     );
 } // convertFromNetworkByteOrder
 
-uint32_t calculateCRC32(CBytes& data, uint32_t initial_value, uint32_t final_xor_value) noexcept
+uint32_t calculateCRC32(utils::typings::CBytes& data, uint32_t initial_value, uint32_t final_xor_value) noexcept
 {
     static constexpr uint32_t POLYNOMIAL{0xEDB88320};
     uint32_t remainder = initial_value;
@@ -147,23 +147,23 @@ uint32_t calculateCRC32(CBytes& data, uint32_t initial_value, uint32_t final_xor
     return remainder ^ final_xor_value;
 } // calculateCRC32
 
-void appendNBytes(Bytes& dest, CBytes& src, Bytes::difference_type n_bytes)
+void appendNBytes(utils::typings::Bytes& dest, utils::typings::CBytes& src, utils::typings::Bytes::difference_type n_bytes)
 {
     dest.reserve(dest.size() + (src.size() - n_bytes));
     dest.insert(dest.end(), src.begin(), src.begin() + n_bytes);
 } // appendNBytes
 
-bool matches(CBytes& lhs, const std::string& rhs) noexcept
+bool matches(utils::typings::CBytes& lhs, const std::string& rhs) noexcept
 {
-    const static auto lambda = [](Byte b, uint8_t c) { return b == Byte{c}; };
+    const static auto lambda = [](utils::typings::Byte b, uint8_t c) { return b == utils::typings::Byte{c}; };
 
     return lhs.size() == rhs.size() and
-        std::equal
-        (
-            lhs.begin(),
-            lhs.end(),
-            rhs.begin(),
-            lambda
-        );
+    std::equal
+    (
+        lhs.begin(),
+        lhs.end(),
+        rhs.begin(),
+        lambda
+    );
 } // matches
 } // namespace utils

@@ -1,3 +1,6 @@
+#include <stdexcept>
+
+#include "utils/utils.hpp"
 #include "utils/zlib-stream-manager.hpp"
 
 namespace utils {
@@ -17,9 +20,17 @@ ZlibStreamManager::~ZlibStreamManager()
     inflateEnd(&m_z_stream);
 }
 
-void ZlibStreamManager::decompressData(CBytes& compressed_data, Bytes& decompressed_data, uint32_t output_chunk_size)
+ZlibStreamManager::ZlibStreamManager(ZlibStreamManager&&) = default;
+ZlibStreamManager& ZlibStreamManager::operator=(ZlibStreamManager&&) = default;
+
+void ZlibStreamManager::decompressData
+(
+    typings::CBytes& compressed_data,
+    typings::Bytes& decompressed_data,
+    uint32_t output_chunk_size
+)
 {
-    Bytes buffer(output_chunk_size);
+    typings::Bytes buffer(output_chunk_size);
     m_z_stream.next_in = std::bit_cast<Bytef*>(compressed_data.data());
     m_z_stream.avail_in = compressed_data.size();
 
@@ -28,7 +39,7 @@ void ZlibStreamManager::decompressData(CBytes& compressed_data, Bytes& decompres
         m_z_stream.next_out = std::bit_cast<Bytef*>(buffer.data());
         m_z_stream.avail_out = buffer.size();
         int ret = inflate(&m_z_stream, Z_NO_FLUSH);
-        auto number_of_bytes_written = static_cast<Bytes::difference_type>( output_chunk_size - m_z_stream.avail_out );
+        auto number_of_bytes_written = static_cast<typings::Bytes::difference_type>( output_chunk_size - m_z_stream.avail_out );
 
         if (ret != Z_OK and ret != Z_STREAM_END)
         {

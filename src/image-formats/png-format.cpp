@@ -21,7 +21,7 @@ PNGFormat::PNGFormat(const std::filesystem::path& image_filepath)
     }
 
     utils::ZlibStreamManager z_lib_stream_manager{};
-    utils::Bytes decompressed_data;
+    utils::typings::Bytes decompressed_data;
     readNBytes(m_signature, SIGNATURE_FIELD_BYTES_SIZE);
 
     // Parses all chunks
@@ -68,7 +68,10 @@ PNGFormat::PNGFormat(const std::filesystem::path& image_filepath)
         m_number_of_samples
     );
 
-    // Defilter each scanline
+    /*!
+     * Defilter each scanline, leaving them in a state where they can be further processed
+     * or returned as is after decompression.
+    */
     m_scanlines.defilterData(decompressed_data, m_defiltered_data);
 } // PNGFormat::PNGFormat
 
@@ -77,10 +80,10 @@ PNGFormat::~PNGFormat()
     m_image_stream.close();
 } // PNGFormat::~PNGFormat
 
-void PNGFormat::readNBytes(utils::Bytes& data, std::streamsize n_bytes)
+void PNGFormat::readNBytes(utils::typings::Bytes& data, std::streamsize n_bytes)
 {
     m_image_stream.read(
-        std::bit_cast<char*, utils::Byte*>(data.data()),
+        std::bit_cast<char*, utils::typings::Byte*>(data.data()),
         n_bytes
     );
 } // PNGFormat::readNBytes
@@ -134,7 +137,7 @@ bool PNGFormat::readNextChunk(Chunk& chunk)
     return true;
 } // PNGFormat::readNextChunk
 
-void PNGFormat::fillIHDRData(utils::CBytes& data)
+void PNGFormat::fillIHDRData(utils::typings::CBytes& data)
 {
     if (not (data.size() == IHDR_CHUNK_BYTES_SIZE))
     {
@@ -153,7 +156,7 @@ void PNGFormat::fillIHDRData(utils::CBytes& data)
     m_ihdr.interlaced_method = utils::readAndAdvanceIter<uint8_t>(begin, end);
 } // PNGFormat::fillIHDRData
 
-void PNGFormat::fillPLTEData(utils::Bytes& data)
+void PNGFormat::fillPLTEData(utils::typings::Bytes& data)
 {
     if ((data.size() > PLTE_CHUNK_MAX_SIZE))
     {
@@ -178,12 +181,12 @@ size_t PNGFormat::getImageScanlineSize() const noexcept
     return m_scanlines.getScanlineSize();
 } // PNGFormat::getScanlinesSize
 
-utils::CBytes& PNGFormat::getRawDataConstRef() noexcept
+utils::typings::CBytes& PNGFormat::getRawDataConstRef() noexcept
 {
     return m_defiltered_data;
 } // PNGFormat::getRawDataRef
 
-utils::Bytes PNGFormat::getRawDataCopy() noexcept
+utils::typings::Bytes PNGFormat::getRawDataCopy() noexcept
 {
     return m_defiltered_data;
 } // PNGFormat::getRawDataCopy
@@ -254,11 +257,11 @@ Scanlines::Scanlines
      * instead of reporting 0 bytes.
     */
     m_stride = ((bit_depth * m_number_of_samples + 7) / 8);
-    m_scanline_size = (static_cast<utils::Bytes::difference_type>(width) * bit_depth * m_number_of_samples + 7) / 8;
+    m_scanline_size = (static_cast<utils::typings::Bytes::difference_type>( width ) * bit_depth * m_number_of_samples + 7) / 8;
     m_scanlines_size = m_scanline_size * height;
 } // Scalines::Scalines
 
-void Scanlines::defilterData(utils::CBytes& filtered_data, utils::Bytes& defiltered_data)
+void Scanlines::defilterData(utils::typings::CBytes& filtered_data, utils::typings::Bytes& defiltered_data)
 {
     // Initialize and resize all the space needed to accommodate all the scanlines
     defiltered_data.resize(m_scanlines_size);
@@ -284,7 +287,7 @@ void Scanlines::defilterData(utils::CBytes& filtered_data, utils::Bytes& defilte
             (
                 it_defiltered,
                 it_defiltered_end,
-                static_cast<utils::Bytes::const_iterator>(defiltered_scanline_begin)
+                static_cast<utils::typings::Bytes::const_iterator>(defiltered_scanline_begin)
             )
         ) { throw std::out_of_range(std::string("Out of range iterators: ") + __func__); }
 
@@ -527,7 +530,7 @@ void Scanlines::defilterSubFilter
     {
         current = static_cast<uint8_t>(*filtered_scanline_begin);
         left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_stride));
-        *defiltered_scanline_begin = utils::Byte(current + left_of_current);
+        *defiltered_scanline_begin = utils::typings::Byte(current + left_of_current);
     }
 } // Scalines::defilterSubFilter
 
@@ -621,7 +624,7 @@ void Scanlines::defilterAverageFilter
         {
             current = static_cast<uint8_t>(*filtered_scanline_begin);
             left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_stride));
-            *defiltered_scanline_begin = utils::Byte(current + std::floor(left_of_current / 2));
+            *defiltered_scanline_begin = utils::typings::Byte(current + std::floor(left_of_current / 2));
         }
 
         return;
@@ -650,7 +653,7 @@ void Scanlines::defilterAverageFilter
     {
         current = static_cast<uint8_t>(*filtered_scanline_begin);
         above_current = static_cast<uint8_t>(*previous_defiltered_scanline_begin);
-        *defiltered_scanline_begin = utils::Byte(current + std::floor(above_current / 2));
+        *defiltered_scanline_begin = utils::typings::Byte(current + std::floor(above_current / 2));
     }
 
     /*!
@@ -666,7 +669,7 @@ void Scanlines::defilterAverageFilter
         current = static_cast<uint8_t>(*filtered_scanline_begin);
         left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_stride));
         above_current = static_cast<uint8_t>(*previous_defiltered_scanline_begin);
-        *defiltered_scanline_begin = utils::Byte(current + std::floor((left_of_current + above_current) / 2));
+        *defiltered_scanline_begin = utils::typings::Byte(current + std::floor((left_of_current + above_current) / 2));
     }
 } // Scanlines::defilterAverageFilter
 
@@ -722,7 +725,7 @@ void Scanlines::defilterPaethFilter
         {
             current = static_cast<uint8_t>(*filtered_scanline_begin);
             left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_stride));
-            *defiltered_scanline_begin = utils::Byte(current + left_of_current);
+            *defiltered_scanline_begin = utils::typings::Byte(current + left_of_current);
         }
 
         return;
@@ -746,7 +749,7 @@ void Scanlines::defilterPaethFilter
     ){
         current = static_cast<uint8_t>(*filtered_scanline_begin);
         above_current = static_cast<uint8_t>(*previous_defiltered_scanline_begin);
-        *defiltered_scanline_begin = utils::Byte(current + above_current);
+        *defiltered_scanline_begin = utils::typings::Byte(current + above_current);
     }
 
     /*!
@@ -763,7 +766,15 @@ void Scanlines::defilterPaethFilter
         left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_stride));
         above_current = static_cast<uint8_t>(*previous_defiltered_scanline_begin);
         upper_left_of_current = static_cast<uint8_t>(*(previous_defiltered_scanline_begin - m_stride));
-        *defiltered_scanline_begin = utils::Byte(current + paethPredictor(left_of_current, above_current, upper_left_of_current));
+        *defiltered_scanline_begin = utils::typings::Byte
+        (
+            current + paethPredictor
+            (
+                left_of_current,
+                above_current,
+                upper_left_of_current
+            )
+        );
     }
 } // Scanlines::defilterPaethFilter
 

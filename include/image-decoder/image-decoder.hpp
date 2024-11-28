@@ -3,37 +3,18 @@
 #include <filesystem>
 #include <variant>
 
-#include "image-formats/png-format.hpp"
+#include "utils/typings.hpp"
 
 namespace image_decoder
 {
-    /*!
-     * Some types and type aliases for easy of documentation.
-    */
-
-    // TODO: Create string representation of the enums.
-    enum class ImageFormat
-    {
-        PNG_FORMAT_TYPE = 0x1,
-    }; // enum class ImageFormat
-
-    enum class ImageColorType
-    {
-        GRAYSCALE           = 0x0,
-        RGB                 = 0x2,
-        INDEXED             = 0x3,
-        GRAYSCALE_ALPHA     = 0x4,
-        RGBA                = 0x6,
-    }; // enum class ImageColorType
-
     class ImageDecoder
     {
         public:
             ImageDecoder(const std::filesystem::path& image_filepath);
-            ~ImageDecoder() = default;
-            ImageDecoder(ImageDecoder&&) = default;
+            ~ImageDecoder();
+            ImageDecoder(ImageDecoder&&);
+            ImageDecoder& operator=(ImageDecoder&&);
             ImageDecoder(const ImageDecoder&) = delete;
-            ImageDecoder& operator=(ImageDecoder&&) = default;
             ImageDecoder& operator=(const ImageDecoder&) = delete;
 
         public:
@@ -43,14 +24,14 @@ namespace image_decoder
              * @return: A const reference for the internal raw data vector,
              * make a copy the vector if the class must go out scope or use getRawDataCopy to get a copy.
             */
-            [[nodiscard]] [[deprecated("Use getRawDataCopy instead.")]] utils::CBytes& getRawDataConstRef();
+            [[nodiscard]] [[deprecated("Use getRawDataCopy instead.")]] utils::typings::CBytes& getRawDataConstRef();
 
             /*!
              * getRawDataCopy
              *
              * @return: A copy for the internal raw data bytes.
             */
-            [[nodiscard]] utils::Bytes getRawDataCopy();
+            [[nodiscard]] utils::typings::Bytes getRawDataCopy();
 
             /*!
              * getRawDataBuffer
@@ -82,7 +63,7 @@ namespace image_decoder
              *
              * @return: Image's color type.
             */
-            [[nodiscard]] ImageColorType getImageColorType() const;
+            [[nodiscard]] utils::typings::ImageColorType getImageColorType() const;
 
             /*!
              * getImageBitDepth
@@ -123,7 +104,7 @@ namespace image_decoder
             void swapBytesOrder();
 
         private:
-            using png_image_unique_ptr = std::unique_ptr<image_formats::png_format::PNGFormat>;
+            using png_image_unique_ptr = std::unique_ptr<utils::typings::PNGFormat>;
 
             static constexpr uint8_t GRAYSCALE_COLOR_TYPE { 0 };
             static constexpr uint8_t RGB_COLOR_TYPE { 2 };
@@ -153,6 +134,6 @@ namespace image_decoder
 
         private:
             std::variant<png_image_unique_ptr> m_data;
-            ImageFormat m_image_format_type;
+            utils::typings::ImageFormat m_image_format_type;
     }; // class ImageDecoder
 }
