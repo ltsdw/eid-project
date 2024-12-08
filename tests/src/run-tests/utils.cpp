@@ -13,7 +13,7 @@ namespace tests
 void writeTiffImage
 (
     const std::filesystem::path& filename,
-    utils::Bytes& raw_data,
+    utils::typings::Bytes& raw_data,
     uint32_t width,
     uint32_t height,
     uint8_t bit_depth,

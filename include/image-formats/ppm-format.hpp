@@ -1,9 +1,9 @@
 namespace images::ppm_format
 {
-    class PPMFormat
-    {
-        /*!
-         * TODO
-        */
-    };
+class PPMFormat
+{
+    /*!
+     * TODO
+    */
+}; // PPMFormat
 }; // namespace images::ppm_format
