@@ -56,7 +56,6 @@ Content's of the src/hello_world.cpp:
 int main(int argc, const char** argv)
 {
     std::filesystem::path image_filepath {"input-images/rgba_16_bits.png"};
-
     image_decoder::ImageDecoder decoder(image_filepath);
 
     /*!
