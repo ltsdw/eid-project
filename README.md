@@ -46,59 +46,55 @@ target_link_libraries(hellow_world EID::eid_project)
 Content's of the src/hello_world.cpp:
 
 ```cpp
-#include <filesystem>
-#include <cstdint>
-#include <iostream>
+#include <cstdlib>
 #include <cassert>
+#include <iostream>
 
 #include "image-decoder/image-decoder.hpp"
-
-static void setBytesPerPixel(image_decoder::ImageColorType color_type, uint8_t* bytes_per_pixel)
-{
-    switch (color_type)
-    {
-        case image_decoder::ImageColorType::GRAYSCALE:
-            *bytes_per_pixel = 1;
-            break;
-        case image_decoder::ImageColorType::GRAYSCALE_ALPHA:
-            *bytes_per_pixel = 2;
-            break;
-        case image_decoder::ImageColorType::RGB:
-            *bytes_per_pixel = 3;
-            break;
-        case image_decoder::ImageColorType::RGBA:
-            *bytes_per_pixel = 4;
-            break;
-        default:
-            assert(false and "Color type not supported.\n");
-    };
-}
+#include "utils/typings.hpp"
 
 int main(int argc, const char** argv)
 {
-    std::filesystem::path image_filepath {"input-images/rgb_8_bits.png"};
+    std::filesystem::path image_filepath {"input-images/rgba_16_bits.png"};
 
     image_decoder::ImageDecoder decoder(image_filepath);
-    decoder.swapBytesOrder(); // Case your system doesn't use MSB (certainly it won't)
-    uint32_t widht { decoder.getImageWidth() };
+
+    /*!
+     * If you're using a png file, and need its raw 16 bit to be in LSB
+     * for other programs, you'll need to swap its bytes from MSB to LSB.
+    */
+    decoder.swapBytesOrder();
+
+    uint32_t width { decoder.getImageWidth() };
     uint32_t heigth { decoder.getImageHeight() };
     uint8_t bit_depth { decoder.getImageBitDepth() };
-    image_decoder::ImageColorType color_type { decoder.getImageColorType() };
-    uint8_t bytes_per_pixel { 0 };
+    utils::typings::ImageColorType color_type { decoder.getImageColorType() };
+    uint32_t scanline_size { decoder.getImageScanlineSize() };
+    uint32_t scanlines_size { decoder.getImageScanlinesSize() };
+    uint8_t number_of_channels { decoder.getImageNumberOfChannels() };
 
-    setBytesPerPixel(color_type, &bytes_per_pixel);
+    utils::typings::Bytes raw_data { decoder.getRawDataRGBA() };
 
-    utils::Bytes& my_image_raw_data =  decoder.getRawDataRef();
+    /*!
+     * Only needed if the image were converted from one color type to another
+     * and only if the internal cache isn't needed anymore.
+     *
+     * Calling it when there's no cache to clean will simply be no op.
+    */
+    decoder.resetCachedData();
 
     /*!
      * Here you would do real work with the raw bytes of my_image_raw_data,
      * but I'm only priting info about the image for simplicity
     */
     std::cout << "file: " << image_filepath << "\n";
-    std::cout << "width: " << widht << "\n";
+    std::cout << "width: " << width << "\n";
     std::cout << "heigth: " << heigth << "\n";
     std::cout << "bit depth: " << (uint32_t)bit_depth << "\n";
-    std::cout << "bytes per pixel: " << (uint32_t)bytes_per_pixel << "\n\n";
+    std::cout << "scanline size: " << scanline_size << "\n";
+    std::cout << "scanlines size: " << scanlines_size << "\n";
+    std::cout << "number of channels: " << (uint32_t)number_of_channels << "\n\n";
+    std::cout << "color type: " << (int)(color_type) << "\n";
 
     return EXIT_SUCCESS;
 }
@@ -140,27 +136,98 @@ int main(int argc, const char** argv)
     uint32_t height = 0;
     ImageColorType image_color_type;
     uint8_t image_bit_depth = 0;
+    uint8_t image_number_of_channels = 0;
+    uint32_t image_scanline_size = 0;
+    uint32_t image_scanlines_size = 0;
+    uint32_t image_rgb_scanline_size = 0;
+    uint32_t image_rgb_scanlines_size = 0;
+    uint32_t image_rgba_scanline_size = 0;
+    uint32_t image_rgba_scanlines_size = 0;
 
-    ImageDecoderWrapper* image_decoder_wrapper = createImageDecoderInstance
+    const char* error = NULL;
+
+    ImageDecoderWrapper* image_decoder_wrapper =
+    createImageDecoderInstance
     (
-        "input-images/rgb_8_bits.png",
+        "input-images/rgba_16_bits.png",
         &width,
         &height,
         &image_color_type,
-        &image_bit_depth
+        &image_bit_depth,
+        &image_number_of_channels,
+        &image_scanline_size,
+        &image_scanlines_size,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        &error
     );
 
-    uint8_t* my_image_raw_data = getRawDataPtr(image_decoder_wrapper);
+    if (! image_decoder_wrapper)
+    {
+        printf("createImageDecoderInstance failed: %s\n", error);
+
+        return EXIT_FAILURE;
+    }
 
     /*!
-     * Here you would do real work with the raw bytes of my_image_raw_data,
-     * but I'm only priting info about the image for simplicity.
+     * If you're using a png file, if the image is 16 bit depth and you need its raw data to be in LSB
+     * for usage in other programs, you'll need to swap its bytes from MSB to LSB.
+     * This only affects 8 > bits png image.
     */
+    int ret = swapBytesOrder(image_decoder_wrapper, &error);
+
+    if (ret != 0)
+    {
+        printf("swapBytesOrder failed: %s\n", error);
+
+        return EXIT_FAILURE;
+    }
+
+    uint8_t* raw_data = getRawDataBuffer(image_decoder_wrapper, &error);
+
+    /*!
+     * Usefull to convert between color types
+    */
+    uint8_t* raw_data_rgb = getRawDataRGBBuffer(image_decoder_wrapper, &error);
+
+    if (! raw_data)
+    {
+        printf("getRawDataBuffer failed: %s\n", error);
+
+        return EXIT_FAILURE;
+    }
+
+    if (! raw_data_rgb)
+    {
+        printf("getRawDataRGBBuffer failed: %s\n", error);
+
+        return EXIT_FAILURE;
+    }
 
     printf("Image width: %d\n", width);
     printf("Image height: %d\n", height);
     printf("Image color type: %d\n", image_color_type);
     printf("Image bit depth: %d\n", image_bit_depth);
+    printf("Image number of channels: %d\n", image_number_of_channels);
+    printf("Image scanline size: %d\n", image_scanline_size);
+    printf("Image scanlines size: %d\n", image_scanlines_size);
+
+    /*!
+     * Only needed if the image were converted from one color type to another
+     * and only if the internal cache isn't needed anymore.
+     *
+     * Calling it when there's no cache to clean will simply be no op.
+    */
+    resetCachedData(image_decoder_wrapper, &error);
+
+    /*!
+     * Remember to free all the allocated resources
+    */
+    freeRawDataBuffer(raw_data);
+    freeRawDataBuffer(raw_data_rgb);
+    destroyImageDecoderInstance(image_decoder_wrapper);
 
     return EXIT_SUCCESS;
 }
@@ -192,9 +259,7 @@ target_link_libraries(hello_world EID::eid_project)
 ```
 
 # Todo-List
-- [ ] Support < 8 bits depth for png images.
 - [ ] Support interlacing method for png images.
-- [ ] Support indexed images.
 - [ ] Support decoding ppm images.
 - [ ] Support decoding bmp images.
 - [ ] Support decoding tiff images.
