@@ -125,6 +125,84 @@ uint8_t* ImageDecoder::getRawDataBuffer()
     );
 } // ImageDecoder::getRawDataPtr
 
+utils::typings::Bytes ImageDecoder::getRawDataRGB()
+{
+    if (m_image_format_type == utils::typings::ImageFormat::PNG_FORMAT_TYPE)
+    {
+        auto image = getPNGVariantData();
+
+        return (*image)->getRawDataRGB();
+    }
+
+    throw std::runtime_error
+    (
+        "Format not implement: "
+        + std::to_string(static_cast<uint8_t>(m_image_format_type))
+        + " not implemented.\n"
+    );
+} // ImageDecoder::getRawDataRGB
+
+uint8_t* ImageDecoder::getRawDataRGBBuffer()
+{
+    if (m_image_format_type == utils::typings::ImageFormat::PNG_FORMAT_TYPE)
+    {
+        auto image = getPNGVariantData();
+
+        uint8_t* ptr = new uint8_t[(*image)->getImageRGBScanlinesSize()];
+
+        std::memcpy(ptr, (*image)->getRawDataRGBBuffer(), (*image)->getImageRGBScanlinesSize());
+
+        return ptr;
+    }
+
+    throw std::runtime_error
+    (
+        "Format not implement: "
+        + std::to_string(static_cast<uint8_t>(m_image_format_type))
+        + " not implemented.\n"
+    );
+} // ImageDecoder::getRawDataRGBBuffer
+
+utils::typings::Bytes ImageDecoder::getRawDataRGBA()
+{
+    if (m_image_format_type == utils::typings::ImageFormat::PNG_FORMAT_TYPE)
+    {
+        auto image = getPNGVariantData();
+
+        return (*image)->getRawDataRGBA();
+    }
+
+    throw std::runtime_error
+    (
+        "Format not implement: "
+        + std::to_string(static_cast<uint8_t>(m_image_format_type))
+        + " not implemented.\n"
+    );
+
+} // ImageDecoder::getRawDataRGBA
+
+uint8_t* ImageDecoder::getRawDataRGBABuffer()
+{
+    if (m_image_format_type == utils::typings::ImageFormat::PNG_FORMAT_TYPE)
+    {
+        auto image = getPNGVariantData();
+
+        uint8_t* ptr = new uint8_t[(*image)->getImageRGBAScanlinesSize()];
+
+        std::memcpy(ptr, (*image)->getRawDataRGBABuffer(), (*image)->getImageRGBAScanlinesSize());
+
+        return ptr;
+    }
+
+    throw std::runtime_error
+    (
+        "Format not implement: "
+        + std::to_string(static_cast<uint8_t>(m_image_format_type))
+        + " not implemented.\n"
+    );
+} // ImageDecoder::getRawDataRGBABuffer
+
+
 uint32_t ImageDecoder::getImageWidth() const
 {
     if (m_image_format_type == utils::typings::ImageFormat::PNG_FORMAT_TYPE)
@@ -183,26 +261,7 @@ utils::typings::ImageColorType ImageDecoder::getImageColorType() const
     {
         auto image = getPNGVariantData();
 
-        switch ((*image)->getImageColorType())
-        {
-            case GRAYSCALE_COLOR_TYPE:
-                return utils::typings::ImageColorType::GRAYSCALE_COLOR_TYPE;
-            case RGB_COLOR_TYPE:
-                return utils::typings::ImageColorType::RGBA_COLOR_TYPE;
-            case INDEXED_COLOR_TYPE:
-                return utils::typings::ImageColorType::INDEXED_COLOR_TYPE;
-            case GRAYSCALE_AND_ALPHA_COLOR_TYPE:
-                return utils::typings::ImageColorType::GRAYSCALE_AND_ALPHA_COLOR_TYPE;
-            case RGBA_COLOR_TYPE:
-                return utils::typings::ImageColorType::RGBA_COLOR_TYPE;
-            default:
-                throw std::runtime_error
-                (
-                    std::string("Color type not supported.\n")
-                    + __func__ + "\n"
-                    + std::to_string((*image)->getImageColorType()) + "\n"
-                );
-        }
+        return (*image)->getImageColorType();
     }
 
     throw std::runtime_error
@@ -230,7 +289,7 @@ uint8_t ImageDecoder::getImageNumberOfChannels() const
     );
 } // ImageDecoder::getImageNumberOfChannels
 
-size_t ImageDecoder::getImageScanlineSize() const
+uint32_t ImageDecoder::getImageScanlineSize() const
 {
     if (m_image_format_type == utils::typings::ImageFormat::PNG_FORMAT_TYPE)
     {
@@ -247,7 +306,7 @@ size_t ImageDecoder::getImageScanlineSize() const
     );
 } // ImageDecoder::getImageScanlineSize
 
-size_t ImageDecoder::getImageScanlinesSize() const
+uint32_t ImageDecoder::getImageScanlinesSize() const
 {
     if (m_image_format_type == utils::typings::ImageFormat::PNG_FORMAT_TYPE)
     {
@@ -264,6 +323,83 @@ size_t ImageDecoder::getImageScanlinesSize() const
     );
 } // ImageDecoder::getImageScanlinesSize
 
+uint32_t ImageDecoder::getImageRGBScanlineSize() const
+{
+    if (m_image_format_type == utils::typings::ImageFormat::PNG_FORMAT_TYPE)
+    {
+        auto image = getPNGVariantData();
+
+        return (*image)->getImageRGBScanlineSize();
+    }
+
+    throw std::runtime_error
+    (
+        "Format not implement: "
+        + std::to_string(static_cast<uint8_t>(m_image_format_type))
+        + " not implemented.\n"
+    );
+} // ImageDecoder::getImageRGBScanlineSize
+
+uint32_t ImageDecoder::getImageRGBScanlinesSize() const
+{
+    if (m_image_format_type == utils::typings::ImageFormat::PNG_FORMAT_TYPE)
+    {
+        auto image = getPNGVariantData();
+
+        return (*image)->getImageRGBScanlinesSize();
+    }
+
+    throw std::runtime_error
+    (
+        "Format not implement: "
+        + std::to_string(static_cast<uint8_t>(m_image_format_type))
+        + " not implemented.\n"
+    );
+} // ImageDecoder::getImageRGBScanlinesSize
+
+uint32_t ImageDecoder::getImageRGBAScanlineSize() const
+{
+    if (m_image_format_type == utils::typings::ImageFormat::PNG_FORMAT_TYPE)
+    {
+        auto image = getPNGVariantData();
+
+        return (*image)->getImageRGBAScanlineSize();
+    }
+
+    throw std::runtime_error
+    (
+        "Format not implement: "
+        + std::to_string(static_cast<uint8_t>(m_image_format_type))
+        + " not implemented.\n"
+    );
+} // ImageDecoder::getImageRGBAScanlineSize
+
+uint32_t ImageDecoder::getImageRGBAScanlinesSize() const
+{
+    if (m_image_format_type == utils::typings::ImageFormat::PNG_FORMAT_TYPE)
+    {
+        auto image = getPNGVariantData();
+
+        return (*image)->getImageRGBAScanlinesSize();
+    }
+
+    throw std::runtime_error
+    (
+        "Format not implement: "
+        + std::to_string(static_cast<uint8_t>(m_image_format_type))
+        + " not implemented.\n"
+    );
+} // ImageDecoder::getImageRGBAScanlinesSize
+
+void ImageDecoder::resetCachedData() noexcept
+{
+    if (m_image_format_type == utils::typings::ImageFormat::PNG_FORMAT_TYPE)
+    {
+        auto image = getPNGVariantData();
+
+        (*image)->resetCachedData();
+    }
+} // ImageDecoder::resetCachedData
 
 void ImageDecoder::swapBytesOrder()
 {
@@ -275,6 +411,6 @@ void ImageDecoder::swapBytesOrder()
 
         return;
     }
-} // ImageDecoder::setUseHostEndianess
+} // ImageDecoder::swapBytesOrder
 
 } // namespace image_formats

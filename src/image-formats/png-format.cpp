@@ -20,11 +20,14 @@ PNGFormat::PNGFormat(const std::filesystem::path& image_filepath)
         std::exit(EXIT_FAILURE);
     }
 
+    uint32_t width { 0 };
+    uint32_t height { 0 };
+    uint8_t  stride { 0 };
     utils::ZlibStreamManager z_lib_stream_manager{};
     utils::typings::Bytes decompressed_data;
     readNBytes(m_signature, SIGNATURE_FIELD_BYTES_SIZE);
 
-    // Parses all chunks
+    // Parses all essential chunks chunks
     while (true)
     {
         Chunk chunk;
@@ -34,38 +37,71 @@ PNGFormat::PNGFormat(const std::filesystem::path& image_filepath)
         if (utils::matches(chunk.m_chunk_type, "IHDR"))
         {
             fillIHDRData(chunk.m_chunk_data);
+
+            m_color_type =
+                (m_ihdr.color_type == 0x0) ? utils::typings::GRAYSCALE_COLOR_TYPE          :
+                (m_ihdr.color_type == 0x2) ? utils::typings::RGB_COLOR_TYPE                :
+                (m_ihdr.color_type == 0x3) ? utils::typings::INDEXED_COLOR_TYPE            :
+                (m_ihdr.color_type == 0x4) ? utils::typings::GRAYSCALE_AND_ALPHA_COLOR_TYPE:
+                (m_ihdr.color_type == 0x6) ? utils::typings::RGBA_COLOR_TYPE               :
+                throw std::runtime_error
+                (
+                    __func__
+                    + std::string("\nColor type not supported: ")
+                    + std::to_string(static_cast<uint32_t>(m_ihdr.color_type)) + "\n"
+                );
+            m_number_of_samples =
+                (m_color_type == utils::typings::GRAYSCALE_COLOR_TYPE)             ? 1 :
+                (m_color_type == utils::typings::RGB_COLOR_TYPE)                   ? 3 :
+                (m_color_type == utils::typings::INDEXED_COLOR_TYPE)               ? 1 :
+                (m_color_type == utils::typings::GRAYSCALE_AND_ALPHA_COLOR_TYPE)   ? 2 :
+                                                                                     4 ;
+            m_number_of_channels = (m_color_type == utils::typings::INDEXED_COLOR_TYPE) ? 3 :
+                                   m_number_of_samples;
+
+            width = getImageWidth();
+            height = getImageHeight();
+            stride = (m_ihdr.bit_depth * m_number_of_samples + 7) / 8;
+
+            const uint64_t max_scanlines_size
+            {
+                // (width x height x bytes_per_pixel) + extra_filter_bytes
+                getImageScanlinesSize() + height
+            };
+
+            /*!
+             * Do not support images that exceeds the limit of UINT32_MAX:
+            */
+            if (max_scanlines_size > UINT32_MAX)
+            {
+                throw std::runtime_error
+                (
+                    "The file exceeds the reasonable limits of sanity. Please rethink your life choices."
+                );
+            }
         } else if (utils::matches(chunk.m_chunk_type, "PLTE"))
         {
             fillPLTEData(chunk.m_chunk_data);
         } else if (utils::matches(chunk.m_chunk_type, "IDAT"))
         {
+            /*!
+             * We could concatenate all IDAT chunks beforehand and only then
+             * decompress all of it at once, but that would have us with an extra
+             * buffer, not to mention all the allocations that would come.
+             *
+             * Processing each IDAT chunk as they come is a better choice here.
+            */
+
             z_lib_stream_manager.decompressData(chunk.m_chunk_data, decompressed_data);
         }
     }
 
-    m_number_of_samples =
-        (m_ihdr.color_type == GRAYSCALE_COLOR_TYPE)             ? 1 :
-        (m_ihdr.color_type == RGB_COLOR_TYPE)                   ? 3 :
-        (m_ihdr.color_type == INDEXED_COLOR_TYPE)               ? 1 :
-        (m_ihdr.color_type == GRAYSCALE_AND_ALPHA_COLOR_TYPE)   ? 2 :
-        (m_ihdr.color_type == RGBA_COLOR_TYPE)                  ? 4 :
-        throw std::runtime_error
-        (
-            std::string("Color type not supported.\n")
-            + __func__ + "\n"
-            + std::to_string((uint32_t)m_ihdr.color_type) + "\n"
-        );
-    m_number_of_channels = (m_ihdr.color_type == INDEXED_COLOR_TYPE) ? 3 : m_number_of_samples;
-    uint32_t width = getImageWidth();
-    uint32_t height = getImageHeight();
     // Create the scanlines structures to be defiltered
     m_scanlines = Scanlines
     (
-        width,
-        height,
-        m_ihdr.bit_depth,
-        m_ihdr.color_type,
-        m_number_of_samples
+        getImageScanlineSize(),
+        getImageScanlinesSize(),
+        stride
     );
 
     /*!
@@ -83,7 +119,7 @@ PNGFormat::~PNGFormat()
 void PNGFormat::readNBytes(utils::typings::Bytes& data, std::streamsize n_bytes)
 {
     m_image_stream.read(
-        std::bit_cast<char*, utils::typings::Byte*>(data.data()),
+        std::bit_cast<char*>(data.data()),
         n_bytes
     );
 } // PNGFormat::readNBytes
@@ -98,9 +134,9 @@ void PNGFormat::readNBytes(void* data, std::streamsize n_bytes)
 
 bool PNGFormat::readNextChunk(Chunk& chunk)
 {
-    uint32_t length{0};
-    uint32_t crc{0};
-    uint32_t data_crc{0};
+    uint32_t length { 0 };
+    uint32_t crc { 0 };
+    uint32_t data_crc { 0 };
 
     readNBytes(&length, CHUNK_LENGTH_FIELD_BYTES_SIZE);
     readNBytes(chunk.m_chunk_type, CHUNK_TYPE_FIELD_BYTES_SIZE);
@@ -171,15 +207,424 @@ void PNGFormat::fillPLTEData(utils::typings::Bytes& data)
     m_palette = std::move(data);
 } // PNGFormat::fillPLTEData
 
-size_t PNGFormat::getImageScanlinesSize() const noexcept
+void PNGFormat::unpackData
+(
+    utils::typings::CBytes& src,
+    utils::typings::Bytes& dest
+) const
 {
-    return m_scanlines.getScanlinesSize();
+    if (m_ihdr.bit_depth > 8)
+    {
+        throw std::runtime_error
+        (
+            __func__
+            + std::string("\nBit depth is too big to unpack: ")
+            + std::to_string(m_ihdr.bit_depth)
+            + "\n"
+        );
+    }
+
+    if (src.empty())
+    {
+        throw std::runtime_error
+        (
+            __func__
+            + std::string("\nSource data cannot be empty.\n")
+        );
+    }
+
+    /*!
+     * Only indexed color images and grayscale supports less than 8 bit depth,
+     * and only indexed color uses three channels, grayscale will always use just one.
+    */
+    const uint8_t bit_depth { m_ihdr.bit_depth };
+    const uint32_t width { getImageWidth() };
+    const uint32_t height { getImageHeight() };
+    const uint32_t scanline_size { getImageScanlineSize() };
+    const uint8_t samples_per_byte = 8 / m_ihdr.bit_depth;
+    const double scaling_factor = (255.0 / ((1 << m_ihdr.bit_depth) - 1));
+    const uint8_t mask = (1 << m_ihdr.bit_depth) - 1;
+
+    if (m_color_type == utils::typings::INDEXED_COLOR_TYPE)
+    {
+        dest.reserve(width * height * 3);
+    } else
+    {
+        dest.reserve(width * height);
+    }
+
+    /*!
+     * When constructing the scanlines above, we had to account for padding bits for the last byte,
+     * because is impossible to have a 1/8 of a byte, or 1/2 of a byte,
+     * as we may had added padding bits to defilter the scanlines we have to ignore them now,
+     * otherwise the image will have more information than necessary.
+     *
+     * This happens when the (width * bit_depth * number_of_samples) of an image isn't divisible by 8, so for example,
+     * an image with 300 width and bit depth of 1, would result in a scanline with size
+     * 37 entire bytes and 4 bits (37 bytes and a half), so we have to add padding to scanline to complete 38 bytes
+     * to defilter, and when unpacking we must ignore this extra bits.
+    */
+    for (uint32_t row = 0; row < height; ++row)
+    {
+        for (uint32_t column = 0; column < width; ++column)
+        {
+            /*!
+             * We are walking each scanline and taking notice of each pixels' bytes indices
+             * they will tell to us exactly at which offset we sitting at relative to how far we are in the scanline.
+             *
+             * The modulus operation on the help with so we never go past the width byte limit,
+             * so for example the same hypothetical image above (300 x 10, 1 bit depth):
+             *
+             * byte_index_0     = 0 = (0 * 38) + (0 / 8);
+             * bits_offset_7    = 7 = ((8 - 1) - (0 % 8)) * 1;
+             * byte_index_0     = 0 = (0 * 38) + (1 / 8);
+             * bits_offset_6    = 6 = ((8 - 1) - (1 % 8)) * 1;
+             * ...
+             * byte_index_379   = 379   = (9 * 38) + (296 / 8);
+             * bits_offset_7    = 7     = ((8 - 1) - (296 % 8)) * 1;
+             * byte_index_379   = 379   = (9 * 38) + (297 / 8);
+             * bits_offset_6    = 6     = ((8 - 1) - (297 % 8)) * 1;
+             * byte_index_379   = 379   = (9 * 38) + (298 / 8);
+             * bits_offset_5    = 5     = ((8 - 1) - (298 % 8)) * 1;
+             * byte_index_379   = 379   = (9 * 38) + (299 / 8);
+             * bits_offset_4    = 4     = ((8 - 1) - (299 % 8)) * 1;
+             *
+             * We stop at the pixel in the row 10 (9 for our 0-indexed system)
+             * and column 300 (299 for our 0-indexed system),
+             * which subtracting our samples per byte from the remainder of the position we're in the scanline
+             * gives us the exact index of the bit(s) relative to their respective position within the image's width,
+             * then we just scale this index by the number of pixels we are working with inside each bytes.
+            */
+            const uint32_t byte_index = (row * scanline_size) + (column / samples_per_byte);
+            const uint32_t bits_offset = (samples_per_byte - 1 - (column % samples_per_byte)) * bit_depth;
+
+            /*!
+             * This may be a index for indexed color type, or a color, for grayscale color type.
+             *
+             * The mask has the width of the bit_set, it correctly isolates just the samples within the byte we want.
+            */
+            const uint8_t data = static_cast<uint8_t>(src[byte_index] >> bits_offset) & mask;
+
+            if (m_color_type == utils::typings::INDEXED_COLOR_TYPE)
+            {
+                /*!
+                 * The index is relative to colors, and not bytes, as every color inside the palette is in rgb format
+                 * it always have three bytes for color (even for grayscale (just two colors) indexed images),
+                 * so we must account for it to index the right color/right channel.
+                */
+                dest.emplace_back(m_palette[data * 3]);         // red
+                dest.emplace_back(m_palette[(data * 3) + 1]);   // green
+                dest.emplace_back(m_palette[(data * 3) + 2]);   // blue
+
+                continue;
+            }
+
+            /*!
+             * If the image is not of the indexed type, rest just the grayscale image to unpack.
+             *
+             * As the bit depth at most 4 which translate at maximum value of 15,
+             * we have to scale this 1, 2, 4 bit depth colors back to 8 bit depth.
+             *
+             * The scaling factor goes as follows:
+             *
+             * max_8_bit_color = 255
+             * n = bit_depth
+             * max_value_for_bit_depth = 2ⁿ-1
+             * scaling_factor = rounded_up(max_8_bit_color / max_value_for_bit_depth)
+            */
+            dest.emplace_back(utils::typings::Byte(std::round(data * scaling_factor)));
+        }
+    }
+}
+
+void PNGFormat::convertDataToRGB
+(
+    utils::typings::CBytes& src,
+    utils::typings::Bytes& dest
+) const
+{
+    if (m_color_type == utils::typings::RGB_COLOR_TYPE) { return; }
+
+    const uint8_t bit_depth = m_ihdr.bit_depth == 16 ? 16 : 8;
+    const uint32_t width = utils::convertFromNetworkByteOrder(m_ihdr.width);
+    const uint32_t height = utils::convertFromNetworkByteOrder(m_ihdr.height);
+
+    if (m_color_type == utils::typings::RGBA_COLOR_TYPE)
+    {
+        dest.reserve(width * height * (bit_depth / 8) * 3);
+
+        if (m_ihdr.bit_depth == 16)
+        {
+            for (uint32_t i = 0; i < src.size(); i += 8)
+            {
+                const uint8_t first_byte_red = static_cast<uint8_t>(src[i]);
+                const uint8_t second_byte_red = static_cast<uint8_t>(src[i + 1]);
+                const uint8_t first_byte_green = static_cast<uint8_t>(src[i + 2]);
+                const uint8_t second_byte_green = static_cast<uint8_t>(src[i + 3]);
+                const uint8_t first_byte_blue = static_cast<uint8_t>(src[i + 4]);
+                const uint8_t second_byte_blue = static_cast<uint8_t>(src[i + 5]);
+                // Alpha skipped
+
+                dest.emplace_back(utils::typings::Byte(first_byte_red));
+                dest.emplace_back(utils::typings::Byte(second_byte_red));
+                dest.emplace_back(utils::typings::Byte(first_byte_green));
+                dest.emplace_back(utils::typings::Byte(second_byte_green));
+                dest.emplace_back(utils::typings::Byte(first_byte_blue));
+                dest.emplace_back(utils::typings::Byte(second_byte_blue));
+            }
+
+            return;
+        }
+
+        if (m_ihdr.bit_depth == 8)
+        {
+            for (uint8_t i = 0; i < src.size(); i += 4)
+            {
+                const uint8_t red = static_cast<uint8_t>(src[i]);
+                const uint8_t green = static_cast<uint8_t>(src[i + 1]);
+                const uint8_t blue = static_cast<uint8_t>(src[i + 2]);
+                // Alpha skipped
+
+                dest.emplace_back(utils::typings::Byte(red));
+                dest.emplace_back(utils::typings::Byte(green));
+                dest.emplace_back(utils::typings::Byte(blue));
+            }
+
+            return;
+        }
+
+        throw std::runtime_error
+        (
+            __func__
+            + std::string("\nBit depth not supported for color type RGBA_COLOR_TYPE: ")
+            + std::to_string(static_cast<uint32_t>(m_ihdr.color_type)) + "\n"
+        );
+    }
+
+    if (m_color_type == utils::typings::INDEXED_COLOR_TYPE)
+    {
+        unpackData(src, dest);
+        return;
+    }
+
+    if (m_color_type == utils::typings::GRAYSCALE_COLOR_TYPE)
+    {
+        if (m_ihdr.bit_depth == 16)
+        {
+            for (auto it = src.begin(); it != src.end(); it += 2)
+            {
+                // red
+                dest.emplace_back(*it);
+                dest.emplace_back(*(it+1));
+                // green
+                dest.emplace_back(*it);
+                dest.emplace_back(*(it+1));
+                // blue
+                dest.emplace_back(*it);
+                dest.emplace_back(*(it+1));
+            }
+
+            return;
+        }
+
+        if (m_ihdr.bit_depth == 8)
+        {
+            for (auto byte : src)
+            {
+                dest.emplace_back(byte); // red
+                dest.emplace_back(byte); // green
+                dest.emplace_back(byte); // blue
+            }
+
+            return;
+        }
+
+        utils::typings::Bytes temp_dest;
+
+        unpackData(src, temp_dest);
+
+        for (auto byte : temp_dest)
+        {
+            dest.emplace_back(byte); // red
+            dest.emplace_back(byte); // green
+            dest.emplace_back(byte); // blue
+        }
+
+        return;
+    }
+
+    if (m_color_type == utils::typings::GRAYSCALE_AND_ALPHA_COLOR_TYPE)
+    {
+        if (m_ihdr.bit_depth == 16)
+        {
+            for (auto it = src.begin(); it != src.end(); it += 4)
+            {
+                // red
+                dest.emplace_back(*it);
+                dest.emplace_back(*(it+1));
+                // green
+                dest.emplace_back(*it);
+                dest.emplace_back(*(it+1));
+                // blue
+                dest.emplace_back(*it);
+                dest.emplace_back(*(it+1));
+            }
+
+            return;
+        }
+
+        if (m_ihdr.bit_depth == 8)
+        {
+            for (auto it = src.begin(); it != src.end(); it += 2)
+            {
+                dest.emplace_back(*it); // red
+                dest.emplace_back(*it); // green
+                dest.emplace_back(*it); // blue
+            }
+
+            return;
+        }
+
+        /*!
+         * Case the bit depth is less than 8 bits, unpackData will handle it
+        */
+        utils::typings::Bytes temp_dest;
+
+        unpackData(src, temp_dest);
+
+        for (auto byte : temp_dest)
+        {
+            dest.emplace_back(byte); // red
+            dest.emplace_back(byte); // green
+            dest.emplace_back(byte); // blue
+        }
+
+        return;
+    }
+
+    throw std::runtime_error
+    (
+        __func__
+        + std::string("\nColor type not supported: ")
+        + std::to_string(static_cast<uint32_t>(m_ihdr.color_type)) + "\n"
+    );
+} // PNGFormat::convertDataToRGB
+
+void PNGFormat::convertDataToRGBA
+(
+    utils::typings::CBytes& src,
+    utils::typings::Bytes& dest
+) const
+{
+    if (m_color_type == utils::typings::RGBA_COLOR_TYPE) { return; }
+
+    utils::typings::Bytes temp_dest;
+    const uint8_t bit_depth = m_ihdr.bit_depth == 16 ? 16 : 8;
+
+    if (dest.empty())
+    {
+        const uint32_t width = utils::convertFromNetworkByteOrder(m_ihdr.width);
+        const uint32_t height = utils::convertFromNetworkByteOrder(m_ihdr.height);
+
+        /*!
+         * width * height * channel_size * four_channels
+        */
+        dest.reserve(width * height * (bit_depth / 8) * 4);
+    }
+
+    /*!
+     * Performance wise it would be better to parse the source data here
+     * and add the alpha next, but it would be too much boilerplate and error prone
+     * to write everything again, so let's use the convertDataToRGB instead.
+    */
+    convertDataToRGB(src, temp_dest);
+
+    /*!
+     * If the data already is in rgb, no conversion is necessary,
+     * use the source vector data instead.
+    */
+    utils::typings::CBytes& rgb_data = (not temp_dest.empty()) ? temp_dest : src;
+
+    /*!
+     * Handles the 16 bit depth.
+    */
+    if (bit_depth == 16)
+    {
+        for (uint32_t i = 0; i < rgb_data.size(); i += 6)
+        {
+            // red
+            dest.emplace_back(rgb_data[i]);
+            dest.emplace_back(rgb_data[i + 1]);
+            // green
+            dest.emplace_back(rgb_data[i + 2]);
+            dest.emplace_back(rgb_data[i + 3]);
+            // blue
+            dest.emplace_back(rgb_data[i + 4]);
+            dest.emplace_back(rgb_data[i + 5]);
+            // alpha 0xFFFF
+            dest.emplace_back(utils::typings::Byte(0xFF));
+            dest.emplace_back(utils::typings::Byte(0xFF));
+        }
+
+        return;
+    }
+
+    /*!
+     * Handles the bit 8 bit depth.
+    */
+    for (uint32_t i = 0; i < rgb_data.size(); i += 3)
+    {
+        dest.emplace_back(rgb_data[i]);                 // red
+        dest.emplace_back(rgb_data[i + 1]);             // green
+        dest.emplace_back(rgb_data[i + 2]);             // blue
+        dest.emplace_back(utils::typings::Byte(0xFF));  // alpha 0xFF
+    }
+} // PNGFormat::convertDataToRGBA
+
+uint32_t PNGFormat::getImageScanlineSize() const noexcept
+{
+    const uint32_t width = utils::convertFromNetworkByteOrder(m_ihdr.width);
+
+    return ((width * m_ihdr.bit_depth * m_number_of_samples + 7) / 8);
 } // PNGFormat::getScanlinesSize
 
-size_t PNGFormat::getImageScanlineSize() const noexcept
+uint32_t PNGFormat::getImageScanlinesSize() const noexcept
 {
-    return m_scanlines.getScanlineSize();
+    const uint32_t height = utils::convertFromNetworkByteOrder(m_ihdr.height);
+
+    return getImageScanlineSize() * height;
 } // PNGFormat::getScanlinesSize
+
+uint32_t PNGFormat::getImageRGBScanlineSize() const noexcept
+{
+    const uint32_t width = utils::convertFromNetworkByteOrder(m_ihdr.width);
+    const uint8_t bit_depth = (m_ihdr.bit_depth <= 8) ? 8 : 16;
+
+    return (width * bit_depth * 3 / 8);
+} // PNGFormat::getImageRGBScanlineSize
+
+uint32_t PNGFormat::getImageRGBScanlinesSize() const noexcept
+{
+    const uint32_t height = utils::convertFromNetworkByteOrder(m_ihdr.height);
+
+    return getImageRGBScanlineSize() * height;
+} // PNGFormat::getImageRGBScanlineSize
+
+uint32_t PNGFormat::getImageRGBAScanlineSize() const noexcept
+{
+    const uint32_t width = utils::convertFromNetworkByteOrder(m_ihdr.width);
+    const uint8_t bit_depth = (m_ihdr.bit_depth <= 8) ? 8 : 16;
+
+    return (width * bit_depth * 4 / 8);
+} // PNGFormat::getImageRGBAScanlineSize
+
+uint32_t PNGFormat::getImageRGBAScanlinesSize() const noexcept
+{
+    const uint32_t height = utils::convertFromNetworkByteOrder(m_ihdr.height);
+
+    return getImageRGBAScanlineSize() * height;
+} // PNGFormat::getImageRGBAScanlineSize
+
 
 utils::typings::CBytes& PNGFormat::getRawDataConstRef() noexcept
 {
@@ -191,10 +636,78 @@ utils::typings::Bytes PNGFormat::getRawDataCopy() noexcept
     return m_defiltered_data;
 } // PNGFormat::getRawDataCopy
 
-const uint8_t* PNGFormat::getRawDataBuffer()
+uint8_t* PNGFormat::getRawDataBuffer() noexcept
 {
     return std::bit_cast<uint8_t*>(m_defiltered_data.data());
 } // PNGFormat::getRawDataPtr
+
+utils::typings::Bytes PNGFormat::getRawDataRGB() noexcept
+{
+    if (m_color_type == utils::typings::RGB_COLOR_TYPE)
+    {
+        return m_defiltered_data;
+    }
+
+    if (not m_defiltered_data_rgb.empty())
+    {
+        return m_defiltered_data_rgb;
+    }
+
+    convertDataToRGB(m_defiltered_data, m_defiltered_data_rgb);
+
+    return m_defiltered_data_rgb;
+} // PNGFormat::getRawDataRGB
+
+uint8_t* PNGFormat::getRawDataRGBBuffer() noexcept
+{
+    if (m_color_type == utils::typings::RGB_COLOR_TYPE)
+    {
+        return std::bit_cast<uint8_t*>(m_defiltered_data.data());
+    }
+
+    if (not m_defiltered_data_rgb.empty())
+    {
+        return std::bit_cast<uint8_t*>(m_defiltered_data_rgb.data());
+    }
+
+    convertDataToRGB(m_defiltered_data, m_defiltered_data_rgb);
+
+    return std::bit_cast<uint8_t*>(m_defiltered_data_rgb.data());
+} // PNGFormat::getRawDataRGBBuffer
+
+utils::typings::Bytes PNGFormat::getRawDataRGBA() noexcept
+{
+    if (m_color_type == utils::typings::RGBA_COLOR_TYPE)
+    {
+        return m_defiltered_data;
+    }
+
+    if (not m_defiltered_data_rgba.empty())
+    {
+        return m_defiltered_data_rgba;
+    }
+
+    convertDataToRGBA(m_defiltered_data, m_defiltered_data_rgba);
+
+    return m_defiltered_data_rgba;
+} // PNGFormat::getRawDataRGBA
+
+uint8_t* PNGFormat::getRawDataRGBABuffer() noexcept
+{
+    if (m_color_type == utils::typings::RGBA_COLOR_TYPE)
+    {
+        return std::bit_cast<uint8_t*>(m_defiltered_data.data());
+    }
+
+    if (not m_defiltered_data_rgba.empty())
+    {
+        return std::bit_cast<uint8_t*>(m_defiltered_data_rgba.data());
+    }
+
+    convertDataToRGBA(m_defiltered_data, m_defiltered_data_rgba);
+
+    return std::bit_cast<uint8_t*>(m_defiltered_data_rgba.data());
+} // PNGFormat::getRawDataRGBABuffer
 
 uint32_t PNGFormat::getImageWidth() const noexcept
 {
@@ -211,9 +724,9 @@ uint8_t PNGFormat::getImageBitDepth() const noexcept
     return m_ihdr.bit_depth;
 } // PNGFormat::getImageBitDepth
 
-uint8_t PNGFormat::getImageColorType() const noexcept
+utils::typings::ImageColorType PNGFormat::getImageColorType() const noexcept
 {
-    return m_ihdr.color_type;
+    return m_color_type;
 } // PNGFormat::getImageColorType
 
 uint8_t PNGFormat::getImageNumberOfChannels() const
@@ -221,7 +734,15 @@ uint8_t PNGFormat::getImageNumberOfChannels() const
     return m_number_of_channels;
 } // PNGFormat::getImageNumberOfChannels
 
-void PNGFormat::swapBytesOrder()
+void PNGFormat::resetCachedData() noexcept
+{
+    utils::typings::Bytes ().swap(m_defiltered_data_rgb);
+    //m_defiltered_data_rgb.shrink_to_fit();
+    utils::typings::Bytes ().swap(m_defiltered_data_rgba);
+    //m_defiltered_data_rgba.shrink_to_fit();
+} // PNGFormat::resetCachedData
+
+void PNGFormat::swapBytesOrder() noexcept
 {
     if (m_ihdr.bit_depth < 16) { return; }
 
@@ -229,18 +750,15 @@ void PNGFormat::swapBytesOrder()
     {
         std::swap(*it, *(it+1));
     }
-}
+} // PNGFormat::swapBytesOrder
 
 Scanlines::Scanlines
 (
-    uint32_t width,
-    uint32_t height,
-    uint8_t bit_depth,
-    uint8_t color_type,
-    uint8_t number_of_samples
+    uint32_t scanline_size,
+    uint32_t scanlines_size,
+    uint8_t stride
 )
 {
-    m_number_of_samples = number_of_samples;
     /*!
      * The stride will tell the distance between one byte and the next byte needed to do operations like defiltering.
      * In other words, the byte channel of one pixel, must match the byte of
@@ -256,14 +774,14 @@ Scanlines::Scanlines
      * The + 7 is a way of rounding up to an entire byte, so for bit depths like 1 and 2, it counts as an entire byte,
      * instead of reporting 0 bytes.
     */
-    m_stride = ((bit_depth * m_number_of_samples + 7) / 8);
-    m_scanline_size = (static_cast<utils::typings::Bytes::difference_type>( width ) * bit_depth * m_number_of_samples + 7) / 8;
-    m_scanlines_size = m_scanline_size * height;
+    m_stride = stride;
+    m_scanline_size = scanline_size;
+    m_scanlines_size = scanlines_size;
 } // Scalines::Scalines
 
 void Scanlines::defilterData(utils::typings::CBytes& filtered_data, utils::typings::Bytes& defiltered_data)
 {
-    // Initialize and resize all the space needed to accommodate all the scanlines
+    // Initialize and resize all the space needed to accommodate all scanlines
     defiltered_data.resize(m_scanlines_size);
 
     const auto it = filtered_data.cbegin();
@@ -277,10 +795,10 @@ void Scanlines::defilterData(utils::typings::CBytes& filtered_data, utils::typin
     */
     for (uint32_t row = 0; row < filtered_data.size(); row += m_scanline_size + 1)
     {
-        auto extra_filter_bytes_accumulated = (row / (m_scanline_size + 1));
-        auto filtered_scanline_begin = filtered_data.begin() + row + 1;
-        auto filtered_scanline_end = filtered_data.begin() + row + m_scanline_size + 1;
-        auto defiltered_scanline_begin = defiltered_data.begin() + row - extra_filter_bytes_accumulated;
+        const auto extra_filter_bytes_accumulated = (row / (m_scanline_size + 1));
+        const auto filtered_scanline_begin = filtered_data.begin() + row + 1;
+        const auto filtered_scanline_end = filtered_data.begin() + row + m_scanline_size + 1;
+        const auto defiltered_scanline_begin = defiltered_data.begin() + row - extra_filter_bytes_accumulated;
 
         if (not utils::isWithinBoundaries(it, it_end, filtered_scanline_begin, filtered_scanline_end)
             or not utils::isWithinBoundaries
@@ -291,7 +809,7 @@ void Scanlines::defilterData(utils::typings::CBytes& filtered_data, utils::typin
             )
         ) { throw std::out_of_range(std::string("Out of range iterators: ") + __func__); }
 
-        auto filter_type = static_cast<uint8_t>(filtered_data[row]);
+        const auto filter_type = static_cast<uint8_t>(filtered_data[row]);
         auto previous_defiltered_scanline_begin = defiltered_data.cend();
         auto previous_defiltered_scanline_end = defiltered_data.cend();
 
@@ -496,9 +1014,6 @@ void Scanlines::defilterSubFilter
     ScanlineBegin defiltered_scanline_begin
 )
 {
-    uint8_t current {0};
-    uint8_t left_of_current {0};
-
     /*!
      * Remember the rule, if there isn't a previous byte, it's 0,
      * this would be the equivalent of doing (current byte + 0), which would be the current byte itself.
@@ -528,8 +1043,8 @@ void Scanlines::defilterSubFilter
 
     for (;filtered_scanline_begin != filtered_scanline_end; ++filtered_scanline_begin, ++defiltered_scanline_begin)
     {
-        current = static_cast<uint8_t>(*filtered_scanline_begin);
-        left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_stride));
+        const auto current = static_cast<uint8_t>(*filtered_scanline_begin);
+        const auto left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_stride));
         *defiltered_scanline_begin = utils::typings::Byte(current + left_of_current);
     }
 } // Scalines::defilterSubFilter
@@ -542,9 +1057,6 @@ void Scanlines::defilterUpFilter(
     ScanlineBegin defiltered_scanline_begin
 )
 {
-    uint8_t current {0};
-    uint8_t above_current {0};
-
     if (previous_defiltered_scanline_begin == previous_defiltered_scanline_end)
     {
         /*!
@@ -568,8 +1080,8 @@ void Scanlines::defilterUpFilter(
         ++previous_defiltered_scanline_begin
     )
     {
-        current = static_cast<uint8_t>(*filtered_scanline_begin);
-        above_current = static_cast<uint8_t>(*(previous_defiltered_scanline_begin));
+        const auto current = static_cast<uint8_t>(*filtered_scanline_begin);
+        const auto above_current = static_cast<uint8_t>(*(previous_defiltered_scanline_begin));
         *defiltered_scanline_begin = std::byte(current + above_current);
     }
 } // Scalines::defilterUpFilter
@@ -583,10 +1095,6 @@ void Scanlines::defilterAverageFilter
     ScanlineBegin defiltered_scanline_begin
 )
 {
-    uint8_t current {0};
-    uint8_t left_of_current {0};
-    uint8_t above_current {0};
-
     if (previous_defiltered_scanline_begin == previous_defiltered_scanline_end)
     {
         /*!
@@ -622,8 +1130,8 @@ void Scanlines::defilterAverageFilter
 
         for (;filtered_scanline_begin != filtered_scanline_end; ++filtered_scanline_begin, ++defiltered_scanline_begin)
         {
-            current = static_cast<uint8_t>(*filtered_scanline_begin);
-            left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_stride));
+            const auto current = static_cast<uint8_t>(*filtered_scanline_begin);
+            const auto left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_stride));
             *defiltered_scanline_begin = utils::typings::Byte(current + std::floor(left_of_current / 2));
         }
 
@@ -651,8 +1159,8 @@ void Scanlines::defilterAverageFilter
         ++previous_defiltered_scanline_begin
     )
     {
-        current = static_cast<uint8_t>(*filtered_scanline_begin);
-        above_current = static_cast<uint8_t>(*previous_defiltered_scanline_begin);
+        const auto current = static_cast<uint8_t>(*filtered_scanline_begin);
+        const auto above_current = static_cast<uint8_t>(*previous_defiltered_scanline_begin);
         *defiltered_scanline_begin = utils::typings::Byte(current + std::floor(above_current / 2));
     }
 
@@ -666,9 +1174,9 @@ void Scanlines::defilterAverageFilter
         ++previous_defiltered_scanline_begin
     )
     {
-        current = static_cast<uint8_t>(*filtered_scanline_begin);
-        left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_stride));
-        above_current = static_cast<uint8_t>(*previous_defiltered_scanline_begin);
+        const auto current = static_cast<uint8_t>(*filtered_scanline_begin);
+        const auto left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_stride));
+        const auto above_current = static_cast<uint8_t>(*previous_defiltered_scanline_begin);
         *defiltered_scanline_begin = utils::typings::Byte(current + std::floor((left_of_current + above_current) / 2));
     }
 } // Scanlines::defilterAverageFilter
@@ -682,11 +1190,6 @@ void Scanlines::defilterPaethFilter
     ScanlineBegin defiltered_scanline_begin
 )
 {
-    uint8_t current {0};
-    uint8_t left_of_current {0};
-    uint8_t above_current {0};
-    uint8_t upper_left_of_current {0};
-
     /*!
      * The paeth filter formula goes as:
      *
@@ -723,8 +1226,8 @@ void Scanlines::defilterPaethFilter
             ++defiltered_scanline_begin
         )
         {
-            current = static_cast<uint8_t>(*filtered_scanline_begin);
-            left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_stride));
+            const auto current = static_cast<uint8_t>(*filtered_scanline_begin);
+            const auto left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_stride));
             *defiltered_scanline_begin = utils::typings::Byte(current + left_of_current);
         }
 
@@ -747,8 +1250,8 @@ void Scanlines::defilterPaethFilter
         ++previous_defiltered_scanline_begin,
         ++defiltered_scanline_begin
     ){
-        current = static_cast<uint8_t>(*filtered_scanline_begin);
-        above_current = static_cast<uint8_t>(*previous_defiltered_scanline_begin);
+        const auto current = static_cast<uint8_t>(*filtered_scanline_begin);
+        const auto above_current = static_cast<uint8_t>(*previous_defiltered_scanline_begin);
         *defiltered_scanline_begin = utils::typings::Byte(current + above_current);
     }
 
@@ -762,10 +1265,10 @@ void Scanlines::defilterPaethFilter
         ++defiltered_scanline_begin
     )
     {
-        current = static_cast<uint8_t>(*filtered_scanline_begin);
-        left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_stride));
-        above_current = static_cast<uint8_t>(*previous_defiltered_scanline_begin);
-        upper_left_of_current = static_cast<uint8_t>(*(previous_defiltered_scanline_begin - m_stride));
+        const auto current = static_cast<uint8_t>(*filtered_scanline_begin);
+        const auto left_of_current = static_cast<uint8_t>(*(defiltered_scanline_begin - m_stride));
+        const auto above_current = static_cast<uint8_t>(*previous_defiltered_scanline_begin);
+        const auto upper_left_of_current = static_cast<uint8_t>(*(previous_defiltered_scanline_begin - m_stride));
         *defiltered_scanline_begin = utils::typings::Byte
         (
             current + paethPredictor
@@ -786,10 +1289,10 @@ uint8_t Scanlines::paethPredictor
     int upper_left_of_current
 ) const noexcept
 {
-    int p = left_of_current + above_current - upper_left_of_current;
-    int p_left_of_current = std::abs(p - left_of_current);
-    int p_above_current = std::abs(p - above_current);
-    int p_upper_left_of_current = std::abs(p - upper_left_of_current);
+    const int p = left_of_current + above_current - upper_left_of_current;
+    const int p_left_of_current = std::abs(p - left_of_current);
+    const int p_above_current = std::abs(p - above_current);
+    const int p_upper_left_of_current = std::abs(p - upper_left_of_current);
 
     if (p_left_of_current <= p_above_current and p_left_of_current <= p_upper_left_of_current)
         return left_of_current;
@@ -798,15 +1301,4 @@ uint8_t Scanlines::paethPredictor
     else
         return upper_left_of_current;
 } // Scalines::paethPredictor
-
-size_t Scanlines::getScanlineSize() const noexcept
-{
-    return m_scanline_size;
-} // Scalines::getScanlineSize
-
-size_t Scanlines::getScanlinesSize() const noexcept
-{
-    return m_scanlines_size;
-} // Scalines::getScanlineSize
-
 } // namespace image_formats::png_format

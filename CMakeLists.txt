@@ -29,7 +29,7 @@ target_include_directories(
     $<INSTALL_INTERFACE:include>
 )
 
-target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
 
 set_target_properties(
     ${PROJECT_NAME}
@@ -58,6 +58,14 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/config-setup.cmake")
 
 # Build tests
 option(BUILD_TESTS "Enable building tests" OFF)
+
+if (DEBUG_ALLOCATOR)
+    target_compile_definitions(
+        ${PROJECT_NAME}
+        PUBLIC
+        DEBUG_ALLOCATOR=${DEBUG_ALLOCATOR}
+    )
+endif()
 
 if (BUILD_TESTS)
     find_package(TIFF REQUIRED)

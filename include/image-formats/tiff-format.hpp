@@ -1,9 +1,9 @@
 namespace images::tiff_format
 {
-    class TIFFFormat
-    {
-        /*!
-         * TODO
-        */
-    };
+class TIFFFormat
+{
+    /*!
+     * TODO
+    */
+}; // TIFFFormat
 }; // namespace images::tiff_format

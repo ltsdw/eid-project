@@ -147,10 +147,21 @@ uint32_t calculateCRC32(utils::typings::CBytes& data, uint32_t initial_value, ui
     return remainder ^ final_xor_value;
 } // calculateCRC32
 
-void appendNBytes(utils::typings::Bytes& dest, utils::typings::CBytes& src, utils::typings::Bytes::difference_type n_bytes)
+void appendNBytes(utils::typings::CBytes& src, utils::typings::Bytes& dest, utils::typings::Bytes::difference_type n_bytes)
 {
-    dest.reserve(dest.size() + (src.size() - n_bytes));
-    dest.insert(dest.end(), src.begin(), src.begin() + n_bytes);
+    /*!
+     * Should I stop bitching about memory here and let the default
+     * vector implementation handle the allocation? Maybe.
+     * While this will save memory, at what cost? This implementations is roughly ≈ 7.5% slower than the default implementation
+     * but saves about 70% more space in the best case scenario compared to most default implementations
+     * which will double the vector capacity when its capacity isn't enough to hold new elements.
+    */
+    if (dest.capacity() < (dest.size() + n_bytes))
+    {
+        dest.reserve(static_cast<size_t>((dest.size() + n_bytes) * 1.3 + 1));
+    }
+
+    dest.insert(dest.end(), src.cbegin(), src.cbegin() + n_bytes);
 } // appendNBytes
 
 bool matches(utils::typings::CBytes& lhs, const std::string& rhs) noexcept
