@@ -11,7 +11,7 @@ install(
 )
 
 install(
-    DIRECTORY "${CMAKE_SOURCE_DIR}/include/"
+    DIRECTORY "${PROJECT_SOURCE_DIR}/include/"
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
 )
@@ -26,6 +26,6 @@ install(
 # Export the target for locally usage without installing system-wide
 export(
     TARGETS ${PROJECT_NAME}
-    FILE "${CMAKE_CURRENT_BINARY_DIR}/cmake/${PROJECT_NAME}Targets.cmake"
+    FILE "${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}Targets.cmake"
     NAMESPACE EID::
 )

@@ -3,7 +3,7 @@
 add_library(
     ${PROJECT_NAME}Wrapper
     STATIC
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/image-decoder-wrapper/image-decoder-wrapper.cpp"
+    "${PROJECT_SOURCE_DIR}/src/image-decoder-wrapper/image-decoder-wrapper.cpp"
 )
 
 # Alias for locally usage
@@ -12,15 +12,15 @@ add_library(EID::${PROJECT_NAME}Wrapper ALIAS ${PROJECT_NAME}Wrapper)
 target_include_directories(
     ${PROJECT_NAME}Wrapper
     PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/image-decoder-wrapper>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/image-decoder-wrapper>
     $<INSTALL_INTERFACE:include/image-decoder-wrapper>
 )
 
 set_target_properties(
     ${PROJECT_NAME}Wrapper
     PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/lib"
-    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/lib"
+    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/lib"
+    ARCHIVE_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/lib"
 )
 
 target_link_libraries(
@@ -49,7 +49,7 @@ install(
 # Export the target for locally usage without installing system-wide
 export(
     TARGETS ${PROJECT_NAME}Wrapper
-    FILE "${CMAKE_CURRENT_BINARY_DIR}/cmake/${PROJECT_NAME}WrapperTargets.cmake"
+    FILE "${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}WrapperTargets.cmake"
     NAMESPACE EID::
 )
 

@@ -13,10 +13,10 @@ find_package(ZLIB REQUIRED)
 add_library(
     ${PROJECT_NAME}
     STATIC
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/image-decoder/image-decoder.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/image-formats/png-format.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/utils/utils.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/utils/zlib-stream-manager.cpp"
+    "${PROJECT_SOURCE_DIR}/src/image-decoder/image-decoder.cpp"
+    "${PROJECT_SOURCE_DIR}/src/image-formats/png-format.cpp"
+    "${PROJECT_SOURCE_DIR}/src/utils/utils.cpp"
+    "${PROJECT_SOURCE_DIR}/src/utils/zlib-stream-manager.cpp"
 )
 
 # Alias for locally usage
@@ -25,7 +25,7 @@ add_library(EID::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 target_include_directories(
     ${PROJECT_NAME}
     PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
 
@@ -34,8 +34,8 @@ target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
 set_target_properties(
     ${PROJECT_NAME}
     PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/lib"
-    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/lib"
+    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/lib"
+    ARCHIVE_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/lib"
 )
 
 target_link_libraries(
@@ -45,16 +45,16 @@ target_link_libraries(
 )
 
 # Add compiler flags
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/compiler-flags.cmake")
+include("${PROJECT_SOURCE_DIR}/cmake/compiler-flags.cmake")
 
 # Install targets system-wide
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/eid-library-install.cmake")
+include("${PROJECT_SOURCE_DIR}/cmake/eid-library-install.cmake")
 
 # Image decoder wrapper setup and installation
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/eid-wrapper-install.cmake")
+include("${PROJECT_SOURCE_DIR}/cmake/eid-wrapper-install.cmake")
 
 # Setup configure cmake file
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/config-setup.cmake")
+include("${PROJECT_SOURCE_DIR}/cmake/config-setup.cmake")
 
 # Build tests
 option(BUILD_TESTS "Enable building tests" OFF)
@@ -69,6 +69,6 @@ endif()
 
 if (BUILD_TESTS)
     find_package(TIFF REQUIRED)
-    file(MAKE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests/build")
-    add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/tests" "${CMAKE_CURRENT_SOURCE_DIR}/tests/build")
+    file(MAKE_DIRECTORY "${PROJECT_SOURCE_DIR}/tests/build")
+    add_subdirectory("${PROJECT_SOURCE_DIR}/tests" "${PROJECT_SOURCE_DIR}/tests/build")
 endif()
